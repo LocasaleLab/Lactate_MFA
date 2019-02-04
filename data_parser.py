@@ -1,5 +1,6 @@
 import xlrd
 import numpy as np
+import warnings
 
 kTissueList = ['Sr', 'AT', 'Br', 'Ht', 'Kd', 'Lg', 'Lv', 'Pc', 'SI', 'SkM', 'Sp']
 
@@ -67,6 +68,24 @@ def data_loader(file_path, sheet_name):
     return data_collect_dict
 
 
+def metabolite_name_strip(raw_metabolite_name):
+    raw_metabolite_name = raw_metabolite_name.strip()
+    carbon_marker = '[13C]'
+    try:
+        marker_location = raw_metabolite_name.index(carbon_marker)
+    except ValueError:
+        try:
+            minus_location = raw_metabolite_name.rindex('-')
+        except ValueError:
+            pass
+        else:
+            if raw_metabolite_name[minus_location + 1:].isdigit():
+                raw_metabolite_name = raw_metabolite_name[: minus_location]
+    else:
+        raw_metabolite_name = raw_metabolite_name[marker_location + len(carbon_marker):]
+    return raw_metabolite_name
+
+
 def data_parser(file_path, experiment_name_prefix, label_list):
     data_book = xlrd.open_workbook(str(file_path))
     mid_data_dict = {}
@@ -76,8 +95,9 @@ def data_parser(file_path, experiment_name_prefix, label_list):
         data_sheet = data_book.sheet_by_name(sheet_name)
         current_col = 0
         metabolite_name_col = 0
+        this_tissue_dict = {}
+        sample_count_dict = {}
         while current_col != data_sheet.ncols:
-            sample_count_dict = {}
             top_row_value = data_sheet.cell_value(0, current_col)
             if top_row_value == 'Compound':
                 metabolite_name_col = current_col
@@ -87,19 +107,23 @@ def data_parser(file_path, experiment_name_prefix, label_list):
                     sample_id = top_row_value[:-1]
                 else:
                     sample_id = top_row_value
+                new_sample = False
                 try:
                     sample_count_dict[sample_id] += 1
                 except KeyError:
                     sample_count_dict[sample_id] = 1
+                    new_sample = True
                 sample_num = sample_count_dict[sample_id]
                 mouse_id, tissue = sample_id.split('_')
                 if tissue not in kTissueList:
                     raise ValueError("Tissue not recognized! Col: {} Tissue: {}".format(current_col, tissue))
-                this_tissue_dict = {}
+                if new_sample:
+                    this_tissue_dict = {}
                 mid_list_dict = {}
                 for current_row in range(1, data_sheet.nrows):
                     current_value = data_sheet.cell_value(current_row, current_col)
-                    metabolite_name = data_sheet.cell_value(current_row, metabolite_name_col)
+                    raw_metabolite_name = data_sheet.cell_value(current_row, metabolite_name_col)
+                    metabolite_name = metabolite_name_strip(raw_metabolite_name)
                     if current_value is None or current_value == "":
                         break
                     else:
@@ -107,14 +131,15 @@ def data_parser(file_path, experiment_name_prefix, label_list):
                             mid_list_dict[metabolite_name].append(current_value)
                         except KeyError:
                             mid_list_dict[metabolite_name] = [current_value]
-                if sample_num == 1:
-                    for metabolite, mid_list in mid_list_dict.items():
-                        this_tissue_dict[metabolite] = np.array(mid_list)
-                else:
-                    for metabolite, mid_list in mid_list_dict.items():
+                for metabolite, mid_list in mid_list_dict.items():
+                    normalized_mid_array = np.array(mid_list)
+                    normalized_mid_array /= np.sum(normalized_mid_array)
+                    if sample_num == 1:
+                        this_tissue_dict[metabolite] = normalized_mid_array
+                    else:
                         this_tissue_dict[metabolite] = (
                                                                this_tissue_dict[metabolite] * (
-                                                               sample_num - 1) + np.array(mid_list)) / sample_num
+                                                                   sample_num - 1) + normalized_mid_array) / sample_num
                 try:
                     current_label_data_dict[mouse_id][tissue] = this_tissue_dict
                 except KeyError:
@@ -125,6 +150,8 @@ def data_parser(file_path, experiment_name_prefix, label_list):
 
 
 def data_checker(data_collection, required_serum_metabolites, required_tissue_metabolites):
+    small_eps = 1e-4
+    large_eps = 0.1
     data_dict = data_collection.mid_data
     new_mid_data_dict = {}
     for experiment, current_exp_data_dict in data_dict.items():
@@ -132,13 +159,39 @@ def data_checker(data_collection, required_serum_metabolites, required_tissue_me
         for mouse_id, current_mouse_data_dict in current_exp_data_dict.items():
             valid = True
             for metabolite in required_serum_metabolites:
-                if metabolite not in current_mouse_data_dict['Sr']:
+                try:
+                    current_mouse_data_dict['Sr'][metabolite]
+                except KeyError:
                     valid = False
+                    break
             for metabolite in required_tissue_metabolites:
-                if metabolite not in current_mouse_data_dict['Lv']:
+                try:
+                    current_mouse_data_dict['Lv'][metabolite]
+                except KeyError:
                     valid = False
+                    break
             if valid:
-                new_exp_data_dict[mouse_id] = current_mouse_data_dict
+                new_mouse_data_dict = {}
+                for tissue, current_tissue_dict in current_mouse_data_dict.items():
+                    new_mouse_data_dict[tissue] = {}
+                    for metabolite, current_data in current_tissue_dict.items():
+                        total_sum = np.sum(current_data)
+                        diff = abs(total_sum - 1)
+                        if diff > large_eps:
+                            raise ValueError((
+                                "Sum of metabolite is not 1: {}\nin experiment: {}\n"
+                                "mouse: {}\ntissue: {}\nmetabolite {}").format(
+                                total_sum, experiment, mouse_id, tissue, metabolite))
+                        elif diff > small_eps:
+                            warnings.warn((
+                                "Sum of metabolite is not 1: {}\nin experiment: {}\n"
+                                "mouse: {}\ntissue: {}\nmetabolite {}").format(
+                                total_sum, experiment, mouse_id, tissue, metabolite))
+                            new_data = current_data / total_sum
+                        else:
+                            new_data = current_data
+                        new_mouse_data_dict[tissue][metabolite] = new_data
+                new_exp_data_dict[mouse_id] = new_mouse_data_dict
         new_mid_data_dict[experiment] = new_exp_data_dict
     return DataCollect(data_collection.experiment_name, new_mid_data_dict)
 

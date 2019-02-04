@@ -1,4 +1,5 @@
 import warnings
+import pickle
 
 import numpy as np
 from scipy.misc import comb
@@ -44,9 +45,9 @@ class NormalDist(object):
 def solve_two_ratios(source1, source2, target):
     if not (len(source1) == len(source2) == len(target)):
         raise ValueError("Length of 3 vectors are not equal !!!")
-    k = (source1 - source2).reshape([-1, 1])
+    a = (source1 - source2).reshape([-1, 1])
     b = target - source2
-    result = np.linalg.lstsq(k, b)
+    result = np.linalg.lstsq(a, b)
     residual_sum = np.sum(result[1] ** 2)
     total_sum = np.sum((b - np.mean(b)) ** 2)
     degree_deter = 1 - residual_sum / total_sum
@@ -58,15 +59,18 @@ def solve_two_ratios(source1, source2, target):
     var_num = 1
     df = point_num - var_num - 1
     residual_stderr = np.sqrt(residual_sum / df)
-    k_stderr = k.std()
-    coeff_stderr = residual_stderr / k_stderr
+    a_stderr = a.std()
+    coeff_stderr = residual_stderr / a_stderr
 
     segment_num = 1000
+    pdf_low_limit = 1e-10
     lb = 0.1
     ub = 0.9
     x_linespace = np.linspace(lb, ub, segment_num)
     x_cdf_linespace = t.cdf(x_linespace, df=df, loc=coeff, scale=coeff_stderr)
-    x_prob = (x_cdf_linespace[1:] - x_cdf_linespace[:-1]) / (x_cdf_linespace[-1] - x_cdf_linespace[0])
+    x_pdf_linespace = x_cdf_linespace[1:] - x_cdf_linespace[:-1]
+    x_pdf_linespace[x_pdf_linespace < pdf_low_limit] = pdf_low_limit
+    x_prob = x_pdf_linespace / np.sum(x_pdf_linespace)
 
     coeff_dist_obj = ArbitraryDist(x_linespace, x_prob)
 
@@ -159,21 +163,22 @@ def solve_single_mid(data_collect_dict):
     return f1 / f6, f3 / f8, 0.01
 
 
-def solve_mid_distribution(data_collect_dict, dist_or_mean="dist", tissue_marker='Lv'):
-    def collect_all_data(_label_list, _tissue, _metabolite_name, data_dict, convolve=False, split=0):
-        matrix = []
-        for label in _label_list:
-            for data_for_mouse in data_dict[label].values():
-                data_vector = data_for_mouse[_tissue][_metabolite_name]
-                if convolve:
-                    data_vector = np.convolve(data_vector, data_vector)
-                elif split != 0:
-                    data_vector = split_equal_dist(data_vector, split)
-                matrix.append(data_vector)
-        result_matrix = np.array(matrix).transpose()
-        return result_matrix
+def collect_all_data(_label_list, _tissue, _metabolite_name, data_dict, convolve=False, split=0):
+    matrix = []
+    for label in _label_list:
+        for data_for_mouse in data_dict[label].values():
+            data_vector = data_for_mouse[_tissue][_metabolite_name]
+            if convolve:
+                data_vector = np.convolve(data_vector, data_vector)
+            elif split != 0:
+                data_vector = split_equal_dist(data_vector, split)
+            matrix.append(data_vector)
+    result_matrix = np.array(matrix).transpose()
+    return result_matrix
 
-    label_list = ["glucose", "lactate"]
+
+def solve_mid_distribution(data_collect_dict, label_list, dist_or_mean="dist", tissue_marker='Lv'):
+
     serum_marker = 'Sr'
     glucose_in_serum = collect_all_data(label_list, serum_marker, "glucose", data_collect_dict)
     pyruvate_in_tissue = collect_all_data(label_list, tissue_marker, "pyruvate", data_collect_dict)
@@ -198,6 +203,25 @@ def solve_mid_distribution(data_collect_dict, dist_or_mean="dist", tissue_marker
         return f1, f3, f5
     else:
         raise ValueError("Error in dist_or_mean: {}".format(dist_or_mean))
+
+
+def solve_infuse_ratio(data_collect_dict, tissue_marker_list):
+    serum_marker = 'Sr'
+    glucose_infused = np.array([0, 0, 0, 0, 0, 0, 1])
+    result_ratio_list = []
+    for data_for_mouse in data_collect_dict["glucose"].values():
+        try:
+            glucose_in_serum = data_for_mouse[serum_marker]["glucose"]
+            for tissue_marker in tissue_marker_list:
+                glucose_in_tissue = data_for_mouse[tissue_marker]["glucose"]
+                f_infuse, f_circ, f_infuse_ratio_dist = solve_two_ratios(
+                    glucose_infused, glucose_in_tissue, glucose_in_serum)
+                result_ratio_list.append(f_infuse)
+        except KeyError:
+            continue
+    mean_infuse_ratio = np.array(result_ratio_list).mean()
+    stderr_infuse_ratio = np.array(result_ratio_list).std()
+    return mean_infuse_ratio, stderr_infuse_ratio
 
 
 def solve_one_case_model1(a, b, c, g1, g2, x):
@@ -229,6 +253,7 @@ def solve_one_case_model2(a, b, c, const1, const2, x):
     return [f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11]
 
 
+# Model for Rabinowitz data, including supplement flux in source tissue.
 def solve_one_case_model3(
         a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, x1, x2, f_input,
         print=lambda *x: None):
@@ -246,6 +271,78 @@ def solve_one_case_model3(
     f2 = f_circ_gluc - g2
     f6 = f1 / a_liver - f10
     f5 = f6 + f1 - f2 + f10
+    f7 = f5 / c_liver
+    print("f1={}, f2={}, f5={}, f6={}, f7={}".format(f1, f2, f5, f6, f7))
+    A = np.array([[1, 1 + 1 / b_tissue], [1, 1 + 1 / b_liver]])
+    B = np.array([f_circ_lac + g7, (1 + 1 / b_liver) * f_circ_lac - f7])
+    print(A, B)
+    [y1, y2] = np.linalg.solve(A, B)
+    print("f4={}, g3={}".format(y1, y2))
+    g3 = y2
+    f4 = y1
+    g4 = f_circ_lac - f4
+    f3 = f_circ_lac - g3
+    g8 = g3 / b_tissue
+    f8 = f3 / b_liver
+    g9 = g5 - g6 - (g8 - g7)
+    f9 = f7 - f8 - (f6 - f5)
+    return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, g1, g2, g3, g4, g5, g6, g7, g8, g9])
+
+
+# Model for our mouse infusion data, including direct supplement to glucose pool in plasma
+def solve_one_case_model4(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac,
+        x1, x2, f_infuse_gluc, print=lambda *x: None):
+    print("a_liver={}, a_tissue={}, b_liver={}, b_tissue={}, c_liver={}, c_tissue={}".format(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue))
+    f1 = x1
+    g2 = x2
+    g1 = f_circ_gluc + f_infuse_gluc - f1
+    g6 = g1 / a_tissue
+    g5 = g6 + g1 - g2
+    g7 = g5 / c_tissue
+    print("g1={}, g2={}, g5={}, g6={}, g7={}".format(g1, g2, g5, g6, g7))
+
+    f10 = f_infuse_gluc
+    f2 = f_circ_gluc - g2
+    f6 = f1 / a_liver
+    f5 = f6 + f1 - f2
+    f7 = f5 / c_liver
+    print("f1={}, f2={}, f5={}, f6={}, f7={}".format(f1, f2, f5, f6, f7))
+    A = np.array([[1, 1 + 1 / b_tissue], [1, 1 + 1 / b_liver]])
+    B = np.array([f_circ_lac + g7, (1 + 1 / b_liver) * f_circ_lac - f7])
+    print(A, B)
+    [y1, y2] = np.linalg.solve(A, B)
+    print("f4={}, g3={}".format(y1, y2))
+    g3 = y2
+    f4 = y1
+    g4 = f_circ_lac - f4
+    f3 = f_circ_lac - g3
+    g8 = g3 / b_tissue
+    f8 = f3 / b_liver
+    g9 = g5 - g6 - (g8 - g7)
+    f9 = f7 - f8 - (f6 - f5)
+    return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, g1, g2, g3, g4, g5, g6, g7, g8, g9])
+
+
+# Model with more circulatory metabolite (pyruvate) in Rabinowitz' data
+def solve_one_case_model5(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac,
+        x1, x2, f_infuse_gluc, print=lambda *x: None):
+    print("a_liver={}, a_tissue={}, b_liver={}, b_tissue={}, c_liver={}, c_tissue={}".format(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue))
+    f1 = x1
+    g2 = x2
+    g1 = f_circ_gluc + f_infuse_gluc - f1
+    g6 = g1 / a_tissue
+    g5 = g6 + g1 - g2
+    g7 = g5 / c_tissue
+    print("g1={}, g2={}, g5={}, g6={}, g7={}".format(g1, g2, g5, g6, g7))
+
+    f10 = f_infuse_gluc
+    f2 = f_circ_gluc - g2
+    f6 = f1 / a_liver
+    f5 = f6 + f1 - f2
     f7 = f5 / c_liver
     print("f1={}, f2={}, f5={}, f6={}, f7={}".format(f1, f2, f5, f6, f7))
     A = np.array([[1, 1 + 1 / b_tissue], [1, 1 + 1 / b_liver]])
@@ -298,7 +395,7 @@ def plot_dist(f_result, x_value_index, leave_out_set):
 
     def plot_ci(_ax, x, y, upper, lower, label):
         _ax.plot(x, y, label=label)
-        _ax.fill_between(x, lower, upper, alpha=0.4)
+        _ax.fill_between(x, lower, upper, alpha=alpha_value)
 
     fig, ax = plt.subplots(ncols=1, nrows=1)
     percent = 95
@@ -338,24 +435,8 @@ def solve_all_fluxes(a, b, c, g1, g2, solve_one_case):
     plt.show()
 
 
-def old_main():
-    data_file_name = "data_collection.xlsx"
-    data_collect_dict = data_parser.data_loader(data_file_name, "Sheet2")
-    # print(data_collect_dict)
-    # construct_model_primary(data_collect_dict)
-    a, b, c = solve_single_mid(data_collect_dict)
-    g1 = 650
-    sigma_g1 = 70
-    g2 = 400
-    sigma_g2 = 40
-    x_max = 1000
-    # solve_all_fluxes(a, b, c, g1, g2)
-    solve_one_case = solve_one_case_model1
-    print(solve_one_case(a, b, c, g1, g2, x_max))
-
-
-def solve_distribution_model1(data_collection):
-    f1_dist, f3_dist, f5_dist = solve_mid_distribution(data_collection.mid_data, dist_or_mean="dist")
+def solve_distribution_model1(data_collection, label_list):
+    f1_dist, f3_dist, f5_dist = solve_mid_distribution(data_collection.mid_data, label_list, dist_or_mean="dist")
     g1_dist = NormalDist(650, 70)
     g2_dist = NormalDist(400, 40)
     sample_size = 100
@@ -367,9 +448,9 @@ def solve_distribution_model1(data_collection):
     plot_dist(f_result, 0, leave_out_set)
 
 
-def solve_distribution_model2(data_collection):
+def solve_distribution_model2(data_collection, label_list):
     f1_f6_ratio_dist, f3_f8_ratio_dist, f5_f7_ratio_dist = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="dist")
+        data_collection.mid_data, label_list, dist_or_mean="dist")
     f1_dist = NormalDist(150.9, 46.7)
     f3_dist = NormalDist(374.4, 112.4)
     sample_size = 100
@@ -381,9 +462,9 @@ def solve_distribution_model2(data_collection):
     plot_dist(f_result, 9, {})
 
 
-def solve_single_result_model2(data_collection):
+def solve_single_result_model2(data_collection, label_list):
     f1_f6_ratio, f3_f8_ratio, f5_f7_ratio = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean")
+        data_collection.mid_data, label_list, dist_or_mean="mean")
     f1 = 150.9
     f3 = 374.4
     a = f1_f6_ratio / (1 - f1_f6_ratio)
@@ -393,207 +474,6 @@ def solve_single_result_model2(data_collection):
     x_value = 150
     f_result = solve_one_case(a, b, c, f1, f3, x_value)
     print(f_result)
-
-
-def solve_single_result_model3(data_collection):
-    brain_marker = 'Br'
-    heart_marker = 'Ht'
-    muscle_marker = 'SkM'
-    liver_marker = 'Lv'
-    tissue_marker = heart_marker
-
-    f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=liver_marker)
-    f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=tissue_marker)
-    a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
-    b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
-    c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
-    a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
-    b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
-    c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
-    f_circ_gluc = 150.9
-    f_circ_lac = 374.4
-    f_10 = 100
-    x1 = 37
-    x2 = 94.5
-    f_result = solve_one_case_model3(
-        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, x1, x2, f_10, print)
-    print(" ".join(
-        ["f{}={{min_result[{}]}}".format(i + 1, i) for i in range(10)] +
-        ["g{}={{min_result[{}]}}".format(i + 1, i + 10) for i in range(9)]).format(min_result=f_result))
-
-    # min_result = None
-    # min_min_value = -np.inf
-    # min_x = None
-    # for x1 in range(151):
-    #     for x2 in range(151):
-    #         f_result = solve_one_case_model3(
-    #             a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, x1, x2, f_10)
-    #         if np.min(f_result) > min_min_value:
-    #             min_result = f_result
-    #             min_min_value = np.min(f_result)
-    #             min_x = [x1, x2]
-    # print(" ".join(
-    #     ["f{}={{min_result[{}]}}".format(i + 1, i) for i in range(10)] +
-    #     ["g{}={{min_result[{}]}}".format(i + 1, i + 10) for i in range(9)]).format(min_result=list(min_result)))
-    # print(min_x)
-
-
-def solve_dynamic_range_model3(data_collection):
-    brain_marker = 'Br'
-    heart_marker = 'Ht'
-    muscle_marker = 'SkM'
-    liver_marker = 'Lv'
-    tissue_marker = heart_marker
-
-    f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=liver_marker)
-    f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=tissue_marker)
-    a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
-    b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
-    c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
-    a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
-    b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
-    c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
-    f_circ_gluc = 150.9
-    f_circ_lac = 374.4
-    f_10 = 100
-    x1_num = 400
-    x1_limit = 180
-    x1_range = np.linspace(0, x1_limit, x1_num + 1)
-    x2_num = x1_num
-    x2_limit = x1_limit
-    x2_range = np.linspace(0, x2_limit, x2_num + 1)
-    valid_matrix = np.zeros([x1_num + 1, x2_num + 1])
-    for index1, x1 in enumerate(x1_range):
-        for index2, x2 in enumerate(x2_range):
-            f_result = solve_one_case_model3(
-                a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, x1, x2, f_10)
-            if np.all(f_result > -1e-5):
-                valid_matrix[index1, index2] = 1
-                # print(x1, x2)
-            else:
-                valid_matrix[index1, index2] = 0
-    fig, ax = plt.subplots()
-    im = ax.imshow(valid_matrix)
-    ax.set_xlim([0, x1_num])
-    ax.set_ylim([0, x2_num])
-    x_tick = ax.get_xticks()
-    y_tick = ax.get_yticks()
-    ax.set_xticklabels(np.around(x1_range[np.array(x_tick, dtype='int')]))
-    ax.set_yticklabels(np.around(x2_range[np.array(y_tick, dtype='int')]))
-    plt.show()
-
-
-def solve_param_sensitivity(data_collection, solve_one_case):
-    f1, f3, f5 = solve_mid_distribution(data_collection.mid_data, dist_or_mean="mean")
-    g1 = 650
-    g2 = 400
-    variation_ratio = 0.5
-
-    x = 800
-    a = f1 / (1 - f1)
-    b = f3 / (1 - f3)
-    c = f5 / (1 - f5)
-    param_dict = {'a': a, 'b': b, 'c': c, 'g1': g1, 'g2': g2, 'x': x}
-    mean_flux_vector = np.array(solve_one_case(**param_dict))
-    flux_num = len(mean_flux_vector)
-    y_lim = [0.9, 1.1]
-    x_ticks = list(range(flux_num))
-    x_ticklabel = ['f{}'.format(i + 2) for i in range(flux_num)]
-    for var_name, _ in param_dict.items():
-        if var_name == 'x':
-            continue
-        fig, ax = plt.subplots(ncols=1, nrows=1)
-        upper_param_dict = dict(param_dict)
-        lower_param_dict = dict(param_dict)
-        lower_param_dict[var_name] *= (1 + variation_ratio)
-        upper_param_dict[var_name] /= (1 + variation_ratio)
-        lower_flux_vector = np.array(solve_one_case(**lower_param_dict)) / mean_flux_vector
-        upper_flux_vector = np.array(solve_one_case(**upper_param_dict)) / mean_flux_vector
-        up_low_limit = np.zeros([2, flux_num])
-        for index, (i, j) in enumerate(zip(lower_flux_vector, upper_flux_vector)):
-            if i > j:
-                up_low_limit[0, index] = j
-                up_low_limit[1, index] = i
-            else:
-                up_low_limit[0, index] = i
-                up_low_limit[1, index] = j
-        relative_error = np.abs(up_low_limit - 1)
-        ax.errorbar(
-            range(flux_num), np.ones(flux_num),
-            yerr=relative_error, marker='o', linestyle='', capsize=7)
-        ax.set_ylim(y_lim)
-        ax.set_title(var_name)
-        ax.set_xticks(x_ticks)
-        ax.set_xticklabels(x_ticklabel)
-        plt.show()
-
-
-def solve_parameter_sensitivity_model3(data_collection):
-    brain_marker = 'Br'
-    heart_marker = 'Ht'
-    muscle_marker = 'SkM'
-    liver_marker = 'Lv'
-    tissue_marker = heart_marker
-
-    f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=liver_marker)
-    f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=tissue_marker)
-    a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
-    b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
-    c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
-    a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
-    b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
-    c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
-    f_circ_gluc = 150.9
-    f_circ_lac = 374.4
-    f_10 = 100
-    x1_num = 400
-    x1_limit = 180
-    x1_range = np.linspace(0, x1_limit, x1_num + 1)
-    x2_num = x1_num
-    x2_limit = x1_limit
-    x2_range = np.linspace(0, x2_limit, x2_num + 1)
-    valid_matrix = np.zeros([x1_num + 1, x2_num + 1])
-
-    min_result = None
-    min_min_value = -np.inf
-    min_x = None
-    for index1, x1 in enumerate(x1_range):
-        for index2, x2 in enumerate(x2_range):
-            f_result = solve_one_case_model3(
-                a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, x1, x2, f_10)
-            if np.min(f_result) > min_min_value:
-                min_result = f_result
-                min_min_value = np.min(f_result)
-                min_x = [x1, x2]
-
-    delta_percent = 0.01
-    min_x_dict = {'x1': min_x[0], 'x2': min_x[1], 'f_input': f_10}
-    for key in min_x_dict.keys():
-        delta_h = min_x_dict[key] * delta_percent
-        x_high_dict = dict(min_x_dict)
-        x_high_dict[key] += delta_h
-        f_high = solve_one_case_model3(
-            a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, **x_high_dict)
-        x_low_dict = dict(min_x_dict)
-        x_low_dict[key] -= delta_h
-        f_low = solve_one_case_model3(
-            a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, **x_low_dict)
-        derivative = (f_high - f_low) / (2 * delta_h)
-        relative_derivative = derivative / min_result
-        fig, ax = plt.subplots()
-        x = range(len(derivative))
-        ax.bar(x, relative_derivative)
-        x_label = ["f{}".format(i + 1, i) for i in range(10)] + ["g{}".format(i + 1, i + 10) for i in range(9)]
-        ax.set_xticks(x)
-        ax.set_xticklabels(x_label)
-        ax.set_title(key)
-        plt.show()
 
 
 def solve_net_glucose_lactate_flux(flux_vector):
@@ -624,17 +504,62 @@ def solve_net_glucose_lactate_flux(flux_vector):
     return glucose_ratio
 
 
-def solve_net_contribution_fluxes(data_collection):
+def model3_calculator(
+        _a_liver, _a_tissue, _b_liver, _b_tissue, _c_liver, _c_tissue, _f_circ_gluc, _f_circ_lac, _f_input,
+        _x1_range, _x2_range):
+    x1_num = len(_x1_range)
+    x2_num = len(_x2_range)
+    _cycle_flux_matrix = np.zeros([x1_num, x2_num])
+    min_cycle_flux = max_cycle_flux = 0
+    min_glucose_contri = max_glucose_contri = 0.5
+    _valid_matrix = np.zeros([x1_num, x2_num])
+    _glucose_contri_matrix = np.zeros([x1_num, x2_num])
+    for index1, x1 in enumerate(_x1_range):
+        for index2, x2 in enumerate(_x2_range):
+            f_result = solve_one_case_model3(
+                _a_liver, _a_tissue, _b_liver, _b_tissue, _c_liver, _c_tissue, _f_circ_gluc, _f_circ_lac, x1, x2,
+                _f_input)
+            if np.all(f_result > -1e-5):
+                _valid_matrix[index1, index2] = 1
+                cycle_flux = ((f_result[1] - f_result[0]) + (f_result[2] - f_result[3])) / 2
+                _cycle_flux_matrix[index1, index2] = cycle_flux
+                if cycle_flux < min_cycle_flux:
+                    min_cycle_flux = cycle_flux
+                    min_cycle_solution = [x1, x2]
+                elif cycle_flux > max_cycle_flux:
+                    max_cycle_flux = cycle_flux
+                    max_cycle_solution = [x1, x2]
+                glucose_contri = solve_net_glucose_lactate_flux(f_result)
+                _glucose_contri_matrix[index1, index2] = glucose_contri
+                if glucose_contri < min_glucose_contri:
+                    min_glucose_contri = glucose_contri
+                    min_glucose_solution = [x1, x2]
+                elif glucose_contri > max_glucose_contri:
+                    max_glucose_contri = glucose_contri
+                    max_glucose_solution = [x1, x2]
+                # print(x1, x2)
+            else:
+                _cycle_flux_matrix[index1, index2] = np.nan
+                _glucose_contri_matrix[index1, index2] = np.nan
+    return _valid_matrix, _glucose_contri_matrix, _cycle_flux_matrix
+
+
+def solve_net_contribution_fluxes_model3(data_collection, label_list):
     brain_marker = 'Br'
     heart_marker = 'Ht'
     muscle_marker = 'SkM'
     liver_marker = 'Lv'
     tissue_marker = heart_marker
 
+    dynamic_range_heatmap = False
+    contribution_heatmap = False
+    contribution_histgram = False
+    cycle_flux_heatmap = False
+
     f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=liver_marker)
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
     f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
-        data_collection.mid_data, dist_or_mean="mean", tissue_marker=tissue_marker)
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=tissue_marker)
     a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
     b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
     c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
@@ -643,26 +568,362 @@ def solve_net_contribution_fluxes(data_collection):
     c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
     f_circ_gluc = 150.9
     f_circ_lac = 374.4
-    f_10 = 100
-    x1_num = 100
-    x1_limit = 50
-    x1_range = np.linspace(0, x1_limit, x1_num + 1)
-    x2_num = 300
-    x2_limit = 150
-    x2_range = np.linspace(0, x2_limit, x2_num + 1)
-    cycle_flux_matrix = np.zeros([x1_num + 1, x2_num + 1])
+    f_input = 100
+    x1_num = 500
+    x1_interv = 100
+    x1_limit = [25, 50]
+    x1_range = np.linspace(*x1_limit, x1_num + 1)
+    x2_num = 1500
+    x2_interv = 300
+    x2_limit = [0, 150]
+    x2_range = np.linspace(*x2_limit, x2_num + 1)
+
+    valid_matrix, glucose_contri_matrix, cycle_flux_matrix = model3_calculator(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, f_input,
+        x1_range, x2_range)
+
+    with open("./Figures/data/valid_matrix_{}_{}".format(liver_marker, tissue_marker), 'wb') as f_out:
+        pickle.dump(valid_matrix, f_out)
+    with open("./Figures/data/glucose_contri_matrix_{}_{}".format(liver_marker, tissue_marker), 'wb') as f_out:
+        pickle.dump(glucose_contri_matrix, f_out)
+
+    if dynamic_range_heatmap:
+        plot_size = (20, 7)
+        dpi = 150
+        fig, ax = plt.subplots(figsize=plot_size, dpi=dpi)
+        im = ax.imshow(valid_matrix)
+        ax.set_xlim([0, x2_num])
+        ax.set_ylim([0, x1_num])
+        # x_tick = ax.get_xticks()
+        # y_tick = ax.get_yticks()
+        # x_tick_in_range = x_tick[x_tick <= x2_num]
+        # y_tick_in_range = y_tick[y_tick <= x1_num]
+        x_tick_in_range = np.arange(0, x2_num, x2_interv)
+        y_tick_in_range = np.arange(0, x1_num, x1_interv)
+        ax.set_xticks(x_tick_in_range)
+        ax.set_yticks(y_tick_in_range)
+        ax.set_xticklabels(np.around(x2_range[np.array(x_tick_in_range, dtype='int')]))
+        ax.set_yticklabels(np.around(x1_range[np.array(y_tick_in_range, dtype='int')]))
+        fig.savefig("./Figures/model3/dynamic_range_{}_{}_100_hf.png".format(liver_marker, tissue_marker), dpi=fig.dpi)
+
+    if cycle_flux_heatmap:
+        fig, ax = plt.subplots()
+        im = ax.imshow(cycle_flux_matrix, cmap='cool')
+        ax.set_xlim([0, x2_num])
+        ax.set_ylim([0, x1_num])
+        x_tick = ax.get_xticks()
+        y_tick = ax.get_yticks()
+        ax.set_xticks(x_tick)
+        ax.set_yticks(y_tick)
+        x_tick_label = np.around(x2_range[np.array(x_tick, dtype='int')])
+        y_tick_label = np.around(x1_range[np.array(y_tick, dtype='int')])
+        ax.set_xticklabels(x_tick_label)
+        ax.set_yticklabels(y_tick_label)
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel('Cycle flux value', rotation=-90, va="bottom")
+
+    if contribution_histgram:
+        fig, ax = plt.subplots()
+        bin_num = 200
+        sample_for_hist = glucose_contri_matrix.reshape([-1])
+        sample_for_hist = sample_for_hist[~np.isnan(sample_for_hist)]
+        im = ax.hist(sample_for_hist, bins=bin_num)
+        ax.set_xlim([0, 1])
+        # ax.set_xticks(x_tick)
+        # ax.set_yticks(y_tick)
+        # x_tick_label = np.around(x2_range[np.array(x_tick, dtype='int')])
+        # y_tick_label = np.around(x1_range[np.array(y_tick, dtype='int')])
+        # ax.set_xticklabels(x_tick_label)
+        # ax.set_yticklabels(y_tick_label)
+
+    if contribution_heatmap:
+        fig, ax = plt.subplots(figsize=plot_size, dpi=dpi)
+        im = ax.imshow(glucose_contri_matrix, cmap='cool')
+        ax.set_xlim([0, x2_num])
+        ax.set_ylim([0, x1_num])
+        # x_tick = ax.get_xticks()
+        # y_tick = ax.get_yticks()
+        # ax.set_xticks(x_tick)
+        # ax.set_yticks(y_tick)
+        # x_tick_in_range = x_tick[x_tick <= x2_num]
+        # y_tick_in_range = y_tick[y_tick <= x1_num]
+        x_tick_in_range = np.arange(0, x2_num, x2_interv)
+        y_tick_in_range = np.arange(0, x1_num, x1_interv)
+        ax.set_xticks(x_tick_in_range)
+        ax.set_yticks(y_tick_in_range)
+        x_tick_label = np.around(x2_range[np.array(x_tick_in_range, dtype='int')])
+        y_tick_label = np.around(x1_range[np.array(y_tick_in_range, dtype='int')])
+        ax.set_xticklabels(x_tick_label)
+        ax.set_yticklabels(y_tick_label)
+        fig.savefig("./Figures/model3/glucose_ratio_{}_{}_100_hf.png".format(liver_marker, tissue_marker), dpi=fig.dpi)
+        fig, ax = plt.subplots()
+        cbar = plt.colorbar(im, ax=ax)
+        ax.remove()
+        cbar.ax.set_ylabel('Glucose Contribution', rotation=-90, va="bottom")
+        fig.savefig("./Figures/model3/glucose_ratio_cbar.png", dpi=fig.dpi)
+
+    plt.show()
+    # print("Min cycle flux: {} at point {}".format(min_cycle_flux, min_cycle_solution))
+    # print("Max cycle flux: {} at point {}".format(max_cycle_flux, max_cycle_solution))
+    # print("Min glucose contribution: {} at point {}".format(min_glucose_contri, min_glucose_solution))
+    # print("Max glucose contribution: {} at point {}".format(max_glucose_contri, max_glucose_solution))
+
+
+def glucose_contribution_violin_model3(data_collection, label_list):
+    new_data = False
+    contribution_data_file_path = "./Figures/data/glucose_contribution_data_model_3_finput_100"
+
+    brain_marker = 'Br'
+    heart_marker = 'Ht'
+    muscle_marker = 'SkM'
+    kidney_marker = 'Kd'
+    lung_marker = 'Lg'
+    pancreas_marker = 'Pc'
+    intestine_marker = 'SI'
+    spleen_marker = 'Sp'
+    liver_marker = 'Lv'
+    tissue_marker_list = [
+        heart_marker, brain_marker, muscle_marker, kidney_marker, lung_marker, pancreas_marker,
+        intestine_marker, spleen_marker]
+
+    if new_data:
+        final_data_dict = {}
+        for tissue_marker in tissue_marker_list:
+            f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
+                data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
+            f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
+                data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=tissue_marker)
+            a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
+            b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
+            c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
+            a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
+            b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
+            c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
+            f_circ_gluc = 150.9
+            f_circ_lac = 374.4
+            f_input = 100
+            x1_num = 1000
+            x1_interv = 100
+            x1_limit = [0, 150]
+            x1_range = np.linspace(*x1_limit, x1_num + 1)
+            x2_num = 1000
+            x2_interv = 300
+            x2_limit = [0, 150]
+            x2_range = np.linspace(*x2_limit, x2_num + 1)
+
+            valid_matrix, glucose_contri_matrix, cycle_flux_matrix = model3_calculator(
+                a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, f_input,
+                x1_range, x2_range)
+            sample = glucose_contri_matrix.reshape([-1])
+            sample = sample[~np.isnan(sample)]
+            final_data_dict[tissue_marker] = sample
+
+        with open(contribution_data_file_path, 'wb') as f_out:
+            pickle.dump(final_data_dict, f_out)
+
+    else:
+        with open(contribution_data_file_path, 'rb') as f_in:
+            final_data_dict = pickle.load(f_in)
+
+    violin_plot(final_data_dict)
+
+
+def violin_plot(data_dict, color_dict=None):
+    fig, ax = plt.subplots()
+    data_list_for_violin = data_dict.values()
+    tissue_label_list = data_dict.keys()
+    x_axis_position = np.arange(1, len(tissue_label_list) + 1)
+
+    parts = ax.violinplot(data_list_for_violin, showmedians=True, showextrema=True)
+    if color_dict is not None:
+        color_list = [color_dict[key] for key in tissue_label_list]
+        parts['cmaxes'].set_edgecolor(color_list)
+        parts['cmins'].set_edgecolor(color_list)
+        parts['cbars'].set_edgecolor(color_list)
+        parts['cmedians'].set_edgecolor(color_list)
+        for pc, color in zip(parts['bodies'], color_list):
+            pc.set_facecolor(color)
+            pc.set_alpha(alpha_value)
+    dash_color = np.array([255, 126, 22]) / 255
+    ax.axhline(0.5, linestyle='--', color=dash_color)
+    ax.set_ylim([-0.1, 1.1])
+    ax.set_xticks(x_axis_position)
+    ax.set_xticklabels(tissue_label_list)
+    # plt.show()
+    return fig, ax
+
+
+compare_color_dict = {
+    'low': np.array([112, 48, 160]) / 255,
+    'original': np.array([21, 113, 177]) / 255,
+    'high': np.array([251, 138, 68]) / 255
+}
+alpha_value = 0.3
+
+
+def violin_test():
+    data_dict = {
+        'low': [0, 1, 0.2, 0.1, 0.3, 0.2, 0.4],
+        'original': [0, 1, 0.4, 0.5, 0.5, 0.5, 0.5],
+        'high': [0, 1, 0.7, 0.8, 0.9, 0.8, 0.7]
+    }
+    violin_plot(data_dict, compare_color_dict)
+    plt.show()
+
+
+def variation_analysis_model3(data_collection, label_list):
+    brain_marker = 'Br'
+    heart_marker = 'Ht'
+    muscle_marker = 'SkM'
+    liver_marker = 'Lv'
+    tissue_marker = heart_marker
+
+    dynamic_range_heatmap = False
+    contribution_plot = False
+    contribution_histgram = False
+    contribution_violin_plot = True
+
+    x1_num = 1000
+    x1_interv = 100
+    x1_limit = [0, 200]
+    x1_range = np.linspace(*x1_limit, x1_num + 1)
+    x2_num = 1000
+    x2_interv = 100
+    x2_limit = [0, 200]
+    x2_range = np.linspace(*x2_limit, x2_num + 1)
+
+    f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
+    f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=tissue_marker)
+    a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
+    b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
+    c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
+    a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
+    b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
+    c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
+    f_circ_gluc = 150.9
+    f_circ_lac = 374.4
+    f_input = 100
+
+    variation_ratio = 0.25
+    param_dict = {
+        '_a_liver': a_liver, '_a_tissue': a_tissue,
+        '_b_liver': b_liver, '_b_tissue': b_tissue,
+        '_c_liver': c_liver, '_c_tissue': c_tissue,
+        '_f_circ_gluc': f_circ_gluc, '_f_circ_lac': f_circ_lac,
+        '_f_input': f_input}
+
+    normal_valid_matrix, normal_glucose_contri_matrix, _ = model3_calculator(
+        **param_dict, _x1_range=x1_range, _x2_range=x2_range)
+    normal_glucose_contri_vector = normal_glucose_contri_matrix.reshape([-1])
+    normal_glucose_contri_vector = normal_glucose_contri_vector[~np.isnan(normal_glucose_contri_vector)]
+    more_glucose_ratio_normal = np.count_nonzero(normal_glucose_contri_vector > 0.5) / len(normal_glucose_contri_vector)
+    print("More glucose ratio in normal case: {}".format(more_glucose_ratio_normal))
+
+    for var_name in param_dict.keys():
+        # for var_name in ['_a_liver']:
+        high_param_dict = dict(param_dict)
+        high_param_dict[var_name] *= (1 + variation_ratio)
+        high_valid_matrix, high_glucose_contri_matrix, _ = model3_calculator(
+            **high_param_dict, _x1_range=x1_range, _x2_range=x2_range)
+        high_glucose_contri_vector = high_glucose_contri_matrix.reshape([-1])
+        high_glucose_contri_vector = high_glucose_contri_vector[~np.isnan(high_glucose_contri_vector)]
+        more_glucose_ratio_high = np.count_nonzero(high_glucose_contri_vector > 0.5) / len(
+            high_glucose_contri_vector)
+        print("More glucose ratio in high case with var {}: {}".format(var_name, more_glucose_ratio_high))
+
+        low_param_dict = dict(param_dict)
+        low_param_dict[var_name] *= (1 - variation_ratio)
+        low_valid_matrix, low_glucose_contri_matrix, _ = model3_calculator(
+            **low_param_dict, _x1_range=x1_range, _x2_range=x2_range)
+        low_glucose_contri_vector = low_glucose_contri_matrix.reshape([-1])
+        low_glucose_contri_vector = low_glucose_contri_vector[~np.isnan(low_glucose_contri_vector)]
+        more_glucose_ratio_low = np.count_nonzero(low_glucose_contri_vector > 0.5) / len(
+            low_glucose_contri_vector)
+        print("More glucose ratio in low case with var {}: {}".format(var_name, more_glucose_ratio_low))
+        high_valid_matrix[normal_valid_matrix == 1.0] = 3
+        high_valid_matrix[low_valid_matrix == 1.0] = 2
+
+        if dynamic_range_heatmap:
+            plot_size = (20, 7)
+            dpi = 150
+            fig, ax = plt.subplots(figsize=plot_size, dpi=dpi)
+            im = ax.imshow(high_valid_matrix)
+            ax.set_xlim([0, x2_num])
+            ax.set_ylim([0, x1_num])
+            x_tick_in_range = np.arange(0, x2_num + 1, x2_interv)
+            y_tick_in_range = np.arange(0, x1_num + 1, x1_interv)
+            ax.set_xticks(x_tick_in_range)
+            ax.set_yticks(y_tick_in_range)
+            ax.set_xticklabels(np.around(x2_range[np.array(x_tick_in_range, dtype='int')]))
+            ax.set_yticklabels(np.around(x1_range[np.array(y_tick_in_range, dtype='int')]))
+            fig.savefig("./Figures/model3/dynamic_range_variation_{}_{}_{}.png".format(
+                liver_marker, tissue_marker, var_name), dpi=fig.dpi)
+
+        if contribution_histgram:
+            fig, ax = plt.subplots()
+            bin_num = 200
+            n_normal, bins_normal, _ = ax.hist(
+                normal_glucose_contri_vector, bins=bin_num, density=True, label="original",
+                color=(0.992, 0.906, 0.141), alpha=alpha_value)
+            n_high, bins_high, _ = ax.hist(
+                high_glucose_contri_vector, bins=bin_num, density=True, label="high",
+                color=(0.188, 0.404, 0.553), alpha=alpha_value)
+            n_low, bins_low, _ = ax.hist(
+                low_glucose_contri_vector, bins=bin_num, density=True, label="low",
+                color=(0.208, 0.718, 0.471), alpha=alpha_value)
+            ax.set_xlim([0, 1])
+            # ax.legend()
+            fig.savefig("./Figures/model3/glucose_contribution_variation_{}_{}_{}.png".format(
+                liver_marker, tissue_marker, var_name))
+
+            if contribution_plot:
+                fig, ax = plt.subplots()
+                x_normal = (bins_normal[1:] + bins_normal[:-1]) / 2
+                x_high = (bins_high[1:] + bins_high[:-1]) / 2
+                x_low = (bins_low[1:] + bins_low[:-1]) / 2
+                ax.plot(x_normal, n_normal, color=(0.992, 0.906, 0.141), linewidth=2)
+                ax.plot(x_high, n_high, color=(0.188, 0.404, 0.553), linewidth=2)
+                ax.plot(x_low, n_low, color=(0.208, 0.718, 0.471), linewidth=2)
+                fig.savefig("./Figures/model3/glucose_contribution_plot_variation_{}_{}_{}.png".format(
+                    liver_marker, tissue_marker, var_name))
+
+        if contribution_violin_plot:
+            contribution_variation_dict = {
+                "low": low_glucose_contri_vector,
+                "original": normal_glucose_contri_vector,
+                "high": high_glucose_contri_vector
+            }
+            fig, ax = violin_plot(contribution_variation_dict, compare_color_dict)
+            fig.savefig("./Figures/model3/glucose_contribution_variation_violinplot_{}_{}_{}.png".format(
+                liver_marker, tissue_marker, var_name))
+
+
+def model4_calculator(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac,
+        x1_range, x2_range, f_infuse_gluc):
+    x1_num = len(x1_range)
+    x2_num = len(x2_range)
+
+    cycle_flux_matrix = np.zeros([x1_num, x2_num])
     min_cycle_flux = max_cycle_flux = 0
     min_cycle_solution = []
     max_cycle_solution = []
     min_glucose_contri = max_glucose_contri = 0.5
     min_glucose_solution = []
     max_glucose_solution = []
-    glucose_contri_matrix = np.zeros([x1_num + 1, x2_num + 1])
+
+    cycle_flux_matrix = np.zeros([x1_num, x2_num])
+    glucose_contri_matrix = np.zeros([x1_num, x2_num])
+    valid_matrix = np.zeros([x1_num, x2_num])
     for index1, x1 in enumerate(x1_range):
         for index2, x2 in enumerate(x2_range):
-            f_result = solve_one_case_model3(
-                a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac, x1, x2, f_10)
+            f_result = solve_one_case_model4(
+                a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac,
+                x1, x2, f_infuse_gluc)
             if np.all(f_result > -1e-5):
+                valid_matrix[index1, index2] = 1
                 cycle_flux = ((f_result[1] - f_result[0]) + (f_result[2] - f_result[3])) / 2
                 cycle_flux_matrix[index1, index2] = cycle_flux
                 if cycle_flux < min_cycle_flux:
@@ -681,59 +942,286 @@ def solve_net_contribution_fluxes(data_collection):
                     max_glucose_solution = [x1, x2]
                 # print(x1, x2)
             else:
+                valid_matrix[index1, index2] = 0
                 cycle_flux_matrix[index1, index2] = np.nan
                 glucose_contri_matrix[index1, index2] = np.nan
-    fig, ax = plt.subplots()
-    im = ax.imshow(cycle_flux_matrix, cmap='cool')
-    ax.set_xlim([0, x2_num])
-    ax.set_ylim([0, x1_num])
-    x_tick = ax.get_xticks()
-    y_tick = ax.get_yticks()
-    ax.set_xticks(x_tick)
-    ax.set_yticks(y_tick)
-    x_tick_label = np.around(x2_range[np.array(x_tick, dtype='int')])
-    y_tick_label = np.around(x1_range[np.array(y_tick, dtype='int')])
-    ax.set_xticklabels(x_tick_label)
-    ax.set_yticklabels(y_tick_label)
-    cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel('Cycle flux value', rotation=-90, va="bottom")
 
-    fig, ax = plt.subplots()
-    im = ax.imshow(glucose_contri_matrix, cmap='cool')
-    ax.set_xlim([0, x2_num])
-    ax.set_ylim([0, x1_num])
-    x_tick = ax.get_xticks()
-    y_tick = ax.get_yticks()
-    ax.set_xticks(x_tick)
-    ax.set_yticks(y_tick)
-    x_tick_label = np.around(x2_range[np.array(x_tick, dtype='int')])
-    y_tick_label = np.around(x1_range[np.array(y_tick, dtype='int')])
-    ax.set_xticklabels(x_tick_label)
-    ax.set_yticklabels(y_tick_label)
-    cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel('Contribution of glucose', rotation=-90, va="bottom")
+    return valid_matrix, glucose_contri_matrix, cycle_flux_matrix
+
+
+def solve_net_contribution_fluxes_model4(data_collection, label_list):
+    # heart_marker = 'Ht'
+    muscle_marker = 'SkM'
+    liver_marker = 'Lv'
+    tissue_marker = muscle_marker
+
+    dynamic_range_heatmap = False
+    contribution_heatmap = False
+    contribution_histgram = False
+    contribution_violin_plot = True
+
+    f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
+    f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=tissue_marker)
+    f_infuse_gluc = 111.1
+    infuse_gluc_ratio, _ = solve_infuse_ratio(data_collection.mid_data, [liver_marker, muscle_marker])
+    f_circ_gluc = f_infuse_gluc / infuse_gluc_ratio - f_infuse_gluc
+    a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
+    b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
+    c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
+    a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
+    b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
+    c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
+    f_circ_lac = 500
+    x1_num = 500
+    x1_limit = [0, 50]
+    x1_range = np.linspace(*x1_limit, x1_num + 1)
+    x2_num = 800
+    x2_limit = [120, 210]
+    x2_range = np.linspace(*x2_limit, x2_num + 1)
+
+    valid_matrix, glucose_contri_matrix, cycle_flux_matrix = model4_calculator(
+        a_liver, a_tissue, b_liver, b_tissue, c_liver, c_tissue, f_circ_gluc, f_circ_lac,
+        x1_range, x2_range, f_infuse_gluc)
+
+    if dynamic_range_heatmap:
+        fig, ax = plt.subplots()
+        im = ax.imshow(valid_matrix)
+        ax.set_xlim([0, x2_num])
+        ax.set_ylim([0, x1_num])
+        x_tick = ax.get_xticks()
+        y_tick = ax.get_yticks()
+        ax.set_xticklabels(np.around(x2_range[np.array(x_tick, dtype='int')]))
+        ax.set_yticklabels(np.around(x1_range[np.array(y_tick, dtype='int')]))
+
+    if contribution_heatmap:
+        fig, ax = plt.subplots()
+        im = ax.imshow(glucose_contri_matrix, cmap='cool')
+        ax.set_xlim([0, x2_num])
+        ax.set_ylim([0, x1_num])
+        x_tick = ax.get_xticks()
+        y_tick = ax.get_yticks()
+        ax.set_xticks(x_tick)
+        ax.set_yticks(y_tick)
+        x_tick_label = np.around(x2_range[np.array(x_tick, dtype='int')])
+        y_tick_label = np.around(x1_range[np.array(y_tick, dtype='int')])
+        ax.set_xticklabels(x_tick_label)
+        ax.set_yticklabels(y_tick_label)
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel('Glucose Contribution', rotation=-90, va="bottom")
+
+    if contribution_histgram:
+        fig, ax = plt.subplots()
+        bin_num = 200
+        sample_for_hist = glucose_contri_matrix.reshape([-1])
+        sample_for_hist = sample_for_hist[~np.isnan(sample_for_hist)]
+        im = ax.hist(sample_for_hist, bins=bin_num)
+        ax.set_xlim([0, 1])
+        # ax.set_xticks(x_tick)
+        # ax.set_yticks(y_tick)
+        # x_tick_label = np.around(x2_range[np.array(x_tick, dtype='int')])
+        # y_tick_label = np.around(x1_range[np.array(y_tick, dtype='int')])
+        # ax.set_xticklabels(x_tick_label)
+        # ax.set_yticklabels(y_tick_label)
+
+    if contribution_violin_plot:
+        glucose_contri_vector = glucose_contri_matrix.reshape([-1])
+        glucose_contri_vector = glucose_contri_vector[~np.isnan(glucose_contri_vector)]
+        contribution_variation_dict = {
+            "normal": glucose_contri_vector,
+        }
+        fig, ax = violin_plot(contribution_variation_dict)
+        # fig.savefig("./Figures/model4/glucose_contribution_violinplot_normal_{}_{}.png".format(
+        #     liver_marker, tissue_marker))
 
     plt.show()
-    print("Min cycle flux: {} at point {}".format(min_cycle_flux, min_cycle_solution))
-    print("Max cycle flux: {} at point {}".format(max_cycle_flux, max_cycle_solution))
-    print("Min glucose contribution: {} at point {}".format(min_glucose_contri, min_glucose_solution))
-    print("Max glucose contribution: {} at point {}".format(max_glucose_contri, max_glucose_solution))
+    # print("Min cycle flux: {} at point {}".format(min_cycle_flux, min_cycle_solution))
+    # print("Max cycle flux: {} at point {}".format(max_cycle_flux, max_cycle_solution))
+    # print("Min glucose contribution: {} at point {}".format(min_glucose_contri, min_glucose_solution))
+    # print("Max glucose contribution: {} at point {}".format(max_glucose_contri, max_glucose_solution))
+
+
+def variation_analysis_model4(data_collection, label_list):
+    brain_marker = 'Br'
+    heart_marker = 'Ht'
+    muscle_marker = 'SkM'
+    liver_marker = 'Lv'
+    tissue_marker = muscle_marker
+
+    dynamic_range_heatmap = True
+    contribution_plot = False
+    contribution_histgram = False
+    contribution_violin_plot = True
+
+    f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
+    f1_f6_ratio_tissue, f3_f8_ratio_tissue, f5_f7_ratio_tissue = solve_mid_distribution(
+        data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=tissue_marker)
+    f_infuse_gluc = 111.1
+    infuse_gluc_ratio, _ = solve_infuse_ratio(data_collection.mid_data, [liver_marker, muscle_marker])
+    f_circ_gluc = f_infuse_gluc / infuse_gluc_ratio - f_infuse_gluc
+    a_liver = f1_f6_ratio_liver / (1 - f1_f6_ratio_liver)
+    b_liver = f3_f8_ratio_liver / (1 - f3_f8_ratio_liver)
+    c_liver = f5_f7_ratio_liver / (1 - f5_f7_ratio_liver)
+    a_tissue = f1_f6_ratio_tissue / (1 - f1_f6_ratio_tissue)
+    b_tissue = f3_f8_ratio_tissue / (1 - f3_f8_ratio_tissue)
+    c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
+    f_circ_lac = 500
+    x1_num = 1000
+    x1_interv = 100
+    x1_limit = [0, 100]
+    x1_range = np.linspace(*x1_limit, x1_num + 1)
+    x2_num = 1500
+    x2_interv = 300
+    x2_limit = [60, 210]
+    x2_range = np.linspace(*x2_limit, x2_num + 1)
+
+    variation_ratio = 0.15
+    param_dict = {
+        'a_liver': a_liver, 'a_tissue': a_tissue,
+        'b_liver': b_liver, 'b_tissue': b_tissue,
+        'c_liver': c_liver, 'c_tissue': c_tissue,
+        'f_circ_gluc': f_circ_gluc, 'f_circ_lac': f_circ_lac,
+        'f_infuse_gluc': f_infuse_gluc}
+
+    normal_valid_matrix, normal_glucose_contri_matrix, _ = model4_calculator(
+        **param_dict, x1_range=x1_range, x2_range=x2_range)
+    normal_glucose_contri_vector = normal_glucose_contri_matrix.reshape([-1])
+    normal_glucose_contri_vector = normal_glucose_contri_vector[~np.isnan(normal_glucose_contri_vector)]
+    more_glucose_ratio_normal = np.count_nonzero(normal_glucose_contri_vector > 0.5) / len(normal_glucose_contri_vector)
+    print("More glucose ratio in normal case: {}".format(more_glucose_ratio_normal))
+
+    # for var_name in param_dict.keys():
+    for var_name in ['f_infuse_gluc']:
+        high_param_dict = dict(param_dict)
+        high_param_dict[var_name] *= (1 + variation_ratio)
+        high_valid_matrix, high_glucose_contri_matrix, _ = model4_calculator(
+            **high_param_dict, x1_range=x1_range, x2_range=x2_range)
+        high_glucose_contri_vector = high_glucose_contri_matrix.reshape([-1])
+        high_glucose_contri_vector = high_glucose_contri_vector[~np.isnan(high_glucose_contri_vector)]
+        more_glucose_ratio_high = np.count_nonzero(high_glucose_contri_vector > 0.5) / len(
+            high_glucose_contri_vector)
+        print("More glucose ratio in high case with var {}: {}".format(var_name, more_glucose_ratio_high))
+
+        low_param_dict = dict(param_dict)
+        low_param_dict[var_name] *= (1 - variation_ratio)
+        low_valid_matrix, low_glucose_contri_matrix, _ = model4_calculator(
+            **low_param_dict, x1_range=x1_range, x2_range=x2_range)
+        low_glucose_contri_vector = low_glucose_contri_matrix.reshape([-1])
+        low_glucose_contri_vector = low_glucose_contri_vector[~np.isnan(low_glucose_contri_vector)]
+        more_glucose_ratio_low = np.count_nonzero(low_glucose_contri_vector > 0.5) / len(
+            low_glucose_contri_vector)
+        print("More glucose ratio in low case with var {}: {}".format(var_name, more_glucose_ratio_low))
+        high_valid_matrix[normal_valid_matrix == 1.0] = 3
+        high_valid_matrix[low_valid_matrix == 1.0] = 2
+
+        if dynamic_range_heatmap:
+            high_valid_matrix[normal_valid_matrix == 1.0] = 3
+            high_valid_matrix[low_valid_matrix == 1.0] = 2
+
+            fig, ax = plt.subplots()
+            im = ax.imshow(high_valid_matrix)
+            ax.set_xlim([0, x2_num])
+            ax.set_ylim([0, x1_num])
+            x_tick_in_range = np.arange(0, x2_num + 1, x2_interv)
+            y_tick_in_range = np.arange(0, x1_num + 1, x1_interv)
+            ax.set_xticklabels(x_tick_in_range)
+            ax.set_yticklabels(y_tick_in_range)
+            ax.set_xticklabels(np.around(x2_range[np.array(x_tick_in_range, dtype='int')]))
+            ax.set_yticklabels(np.around(x1_range[np.array(y_tick_in_range, dtype='int')]))
+
+        if contribution_violin_plot:
+            contribution_variation_dict = {
+                "low": low_glucose_contri_vector,
+                "original": normal_glucose_contri_vector,
+                "high": high_glucose_contri_vector
+            }
+            fig, ax = violin_plot(contribution_variation_dict, compare_color_dict)
+            fig.savefig("./Figures/model4/glucose_contribution_variation_violinplot_{}_{}_{}.png".format(
+                liver_marker, tissue_marker, var_name))
+    plt.show()
+
+
+def raw_data_plotting(data_collection, label_list):
+    def mean_std(np_array):
+        return np.mean(np_array, axis=0), np.std(np_array, axis=0)
+
+    heart_marker = 'Ht'
+    muscle_marker = 'SkM'
+    liver_marker = 'Lv'
+    serum_marker = 'Sr'
+    tissue_marker = muscle_marker
+    label = label_list[0]
+    tissue_marker_list = [tissue_marker, serum_marker, liver_marker]
+    metabolite_list = ['glucose', 'pyruvate', 'lactate']
+
+    data_dict = data_collection.mid_data[label]
+    collected_data_dict = {}
+    final_average_dict = {}
+    final_std_dict = {}
+    for dict_each_mouse in data_dict.values():
+        for tissue_name in tissue_marker_list:
+            for metabolite_name in metabolite_list:
+                try:
+                    current_data = dict_each_mouse[tissue_name][metabolite_name]
+                except KeyError:
+                    continue
+                else:
+                    current_key = "{}_{}".format(tissue_name, metabolite_name)
+                    try:
+                        collected_data_dict[current_key].append(current_data)
+                    except KeyError:
+                        collected_data_dict[current_key] = [current_data]
+    for mixed_key, mid_array in collected_data_dict.items():
+        final_average_dict[mixed_key], final_std_dict[mixed_key] = mean_std(mid_array)
+
+    # color_array = np.array([187, 213, 232]) / 255
+    base_color = compare_color_dict['original']
+    background_color = np.array([221, 241, 255]) / 255
+    base_alpha_value = alpha_value + 0.1
+    for mixed_key, mid_array in final_average_dict.items():
+        edge = 0.2
+        array_len = len(mid_array)
+        fig_size = (array_len + edge * 2, 4)
+        fig, ax = plt.subplots(figsize=fig_size)
+        x_loc = np.arange(array_len) + 0.5
+        ax.bar(x_loc, mid_array, width=0.6, color=base_color, alpha=base_alpha_value)
+        ax.errorbar(
+            x_loc, mid_array, yerr=final_std_dict[mixed_key], capsize=5, fmt='none',
+            color=base_color)
+        ax.set_xlabel(mixed_key)
+        ax.set_ylim([0, 1])
+        ax.set_xlim(-edge, array_len + edge)
+        ax.set_xticks(x_loc)
+        ax.set_yticks(np.arange(0, 1.1, 0.2))
+        ax.set_yticklabels([])
+        fig.savefig("./Figures/data/raw_data_{}_{}.png".format(data_collection.experiment_name, mixed_key))
+    plt.show()
 
 
 def main():
     file_path = "data_collection.xlsx"
     experiment_name_prefix = "Sup_Fig_5_fasted"
     label_list = ["glucose", "lactate"]
+    # file_path = "data_collection_from_Dan.xlsx"
+    # experiment_name_prefix = "no_tumor"
+    # label_list = ["glucose"]
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "lactate"], ["glucose", "pyruvate", "lactate"])
-    # solve_distribution_model2(data_collection)
-    # solve_single_result_model2(data_collection)
-    solve_single_result_model3(data_collection)
-    # solve_dynamic_range_model3(data_collection)
-    # solve_parameter_sensitivity_model3(data_collection)
-    # solve_net_contribution_fluxes(data_collection)
-    # solve_param_sensitivity(data_collection)
+    # solve_distribution_model2(data_collection, label_list)
+    # solve_single_result_model2(data_collection, label_list)
+    # solve_single_result_model3(data_collection, label_list)
+    # solve_single_result_model4(data_collection, label_list)
+    # solve_parameter_sensitivity_model3(data_collection, label_list)
+    # solve_net_contribution_fluxes_model3(data_collection, label_list)
+    # glucose_contribution_violin_model3(data_collection, label_list)
+    # solve_net_contribution_fluxes_model4(data_collection, label_list)
+    # solve_param_sensitivity(data_collection, label_list, solve_one_case_model3)
+    # variation_analysis_model3(data_collection, label_list)
+    # variation_analysis_model4(data_collection, label_list)
+    raw_data_plotting(data_collection, label_list)
 
 
 if __name__ == '__main__':
