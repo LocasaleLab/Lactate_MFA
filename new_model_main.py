@@ -1,6 +1,7 @@
 import itertools as it
 import pickle
 import multiprocessing as mp
+import platform
 
 import numpy as np
 import cvxopt
@@ -488,13 +489,30 @@ def dynamic_range_model1(model_mid_data_dict: dict):
                         ['Fcirc_glu', 'Fcirc_lac']
     complete_var_dict = {var: i for i, var in enumerate(complete_var_list)}
     fixed_constant_dict = {'Fcirc_glu': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-    f1_free_flux = FreeVariable(name='F1', total_num=51, var_range=[0, 150], display_interv=50)
-    g2_free_flux = FreeVariable(name='G2', total_num=51, var_range=[0, 150], display_interv=50)
+
+    if platform.node() == 'BaranLiu-PC':
+        f1_num = 51
+        f1_range = [0, 150]
+        f1_display_interv = 50
+        g2_num = 51
+        g2_range = [0, 150]
+        g2_display_interv = 50
+        parallel_num = 5
+    else:
+        f1_num = 1000
+        f1_range = [0, 150]
+        f1_display_interv = 300
+        g2_num = 1000
+        g2_range = [0, 150]
+        g2_display_interv = 300
+        parallel_num = 12
+
+    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
     min_flux_value = 1
     max_flux_value = 5000
-    optimization_repeat_time = 5
+    optimization_repeat_time = 8
     obj_tolerance = 0.5
-    parallel_num = 5
 
     iter_parameter_list = []
     balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
@@ -696,7 +714,8 @@ def final_result_processing_and_plotting(
     with open("{}/objective_function_matrix".format(output_direct), 'wb') as f_out:
         pickle.dump(objective_function_matrix, f_out)
 
-    plt.show()
+    if platform.node() == 'BaranLiu-PC':
+        plt.show()
 
 
 def model_solver_cvxopt(
