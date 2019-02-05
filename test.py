@@ -386,6 +386,29 @@ def multiprocess_test():
     print(hook_result_list)
 
 
+count_q = mp.Queue()
+
+
+def multiprocess_test2():
+    pool = mp.Pool(processes=parallel_num)
+    chunk_size = 100
+    with pool:
+        async_result = pool.map_async(
+            partial(
+                model_solver_single, const_parameter_dict=const_parameter_dict,
+                other_parameter_dict=other_parameter_dict, hook_in_each_iteration=hook_in_each_iteration,
+                hook_in_each_iteration_kwargs=hook_in_each_iteration_kwargs),
+            var_parameter_list, chunk_size, callback)
+
+        count = 0
+        total_count = len(var_parameter_list)
+        while count < total_count:
+            b = count_q.get()
+            print(b)
+            count += 1
+            if count % 50 == 0:
+                print("Main process: {} ({:.3f}) completed".format(count, count / total_count))
+
 
 def main():
     # emoji_test()

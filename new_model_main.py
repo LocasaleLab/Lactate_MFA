@@ -2,12 +2,15 @@ import itertools as it
 import pickle
 import multiprocessing as mp
 import platform
+from functools import partial
+import time
 
 import numpy as np
 import cvxopt
 from scipy.misc import comb as scipy_comb
 import matplotlib.pyplot as plt
 import scipy.optimize
+import tqdm
 
 import data_parser as data_parser
 import main as main_functions
@@ -46,6 +49,10 @@ class Result(object):
         self.obj_value = obj_value
         self.success = success
         self.minimal_obj_value = minimal_obj_value
+
+    def __repr__(self):
+        return "Result: {}\nObjective value: {}\nSuccess: {}\nMinimal objective value: {}".format(
+            self.result_dict, self.obj_value, self.success, self.minimal_obj_value)
 
 
 def natural_dist(_c13_ratio, carbon_num):
@@ -512,7 +519,7 @@ def dynamic_range_model1(model_mid_data_dict: dict):
     min_flux_value = 1
     max_flux_value = 5000
     optimization_repeat_time = 8
-    obj_tolerance = 0.5
+    obj_tolerance = 0.15
 
     iter_parameter_list = []
     balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
@@ -704,7 +711,7 @@ def final_result_processing_and_plotting(
 
     glucose_contri_vector = glucose_contri_matrix.reshape([-1])
     glucose_contri_vector = glucose_contri_vector[~np.isnan(glucose_contri_vector)]
-    main_functions.violin_plot({"normal": glucose_contri_vector})
+    fig, ax = main_functions.violin_plot({"normal": glucose_contri_vector})
     fig.savefig("{}/glucose_contribution_violin.png".format(output_direct), dpi=fig.dpi)
 
     with open("{}/glucose_contri_matrix".format(output_direct), 'wb') as f_out:
@@ -737,12 +744,13 @@ def model_solver_cvxopt(
     return result
 
 
-def model_solver_single(
+def model_solver_one_list(
         var_parameter_list, index, result_queue: mp.Queue, const_parameter_dict,
         hook_in_each_iteration, other_parameter_dict, hook_in_each_iteration_kwargs):
     current_result_list = []
     current_hook_result_list = []
     count = 0
+    total_count = len(var_parameter_list)
     for var_parameter_dict in var_parameter_list:
         result = one_case_solver_slsqp(**const_parameter_dict, **var_parameter_dict)
         current_result_list.append(result)
@@ -752,7 +760,7 @@ def model_solver_single(
         current_hook_result_list.append(hook_result)
         count += 1
         if count % 100 == 0:
-            print(count)
+            print("Process {}: {} ({:.2f}) completed".format(index, count, count / total_count))
     result_queue.put((index, current_result_list, current_hook_result_list))
 
 
@@ -774,7 +782,7 @@ def model_solver_slsqp_parallel(
         start = sub_list_length * i
         end = min(sub_list_length * (i + 1), total_iter_num)
         this_var_parameter_list = var_parameter_list[start:end]
-        p = mp.Process(target=model_solver_single, args=(
+        p = mp.Process(target=model_solver_one_list, args=(
             this_var_parameter_list, i, q, const_parameter_dict, hook_in_each_iteration,
             other_parameter_dict, hook_in_each_iteration_kwargs))
         p.start()
@@ -803,6 +811,54 @@ def model_solver_slsqp_parallel(
         **hook_after_all_iterations_kwargs)
 
 
+def model_solver_single(
+        var_parameter_dict, const_parameter_dict, other_parameter_dict,
+        hook_in_each_iteration, hook_in_each_iteration_kwargs):
+    # var_parameter_dict, q = complete_parameter_tuple
+    result = one_case_solver_slsqp(**const_parameter_dict, **var_parameter_dict)
+    hook_result = hook_in_each_iteration(
+        result, const_parameter_dict, var_parameter_dict, other_parameter_dict,
+        **hook_in_each_iteration_kwargs)
+    # q.put(1)
+    return result, hook_result
+
+
+def model_solver_slsqp_parallel_pool(
+        data_collection_obj, data_collection_func, data_collection_kwargs, parameter_construction_func,
+        parameter_construction_kwargs, hook_in_each_iteration, hook_in_each_iteration_kwargs,
+        hook_after_all_iterations, hook_after_all_iterations_kwargs):
+    raw_data_collection_dict = data_collection_obj.mid_data
+    model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
+    const_parameter_dict, var_parameter_list, other_parameter_dict = parameter_construction_func(
+        model_mid_data_dict, **parameter_construction_kwargs)
+    parallel_num = other_parameter_dict['parallel_num']
+
+    # manager = multiprocessing.Manager()
+    # q = manager.Queue()
+    # result = pool.map_async(task, [(x, q) for x in range(10)])
+
+    pool = mp.Pool(processes=parallel_num)
+    chunk_size = 100
+    with pool:
+        raw_result_iter = pool.imap(
+            partial(
+                model_solver_single, const_parameter_dict=const_parameter_dict,
+                other_parameter_dict=other_parameter_dict, hook_in_each_iteration=hook_in_each_iteration,
+                hook_in_each_iteration_kwargs=hook_in_each_iteration_kwargs),
+            var_parameter_list, chunk_size)
+        raw_result_list = list(tqdm.tqdm(raw_result_iter, total=len(var_parameter_list)))
+
+    result_iter, hook_result_iter = zip(*raw_result_list)
+
+    # print(len(result_list))
+    # print(result_list[0])
+    # print(len(hook_result_list))
+    # print(hook_result_list[0])
+    hook_after_all_iterations(
+        result_iter, hook_result_iter, const_parameter_dict, var_parameter_list, other_parameter_dict,
+        **hook_after_all_iterations_kwargs)
+
+
 def model1_dynamic_range_glucose_contribution():
     file_path = "data_collection.xlsx"
     experiment_name_prefix = "Sup_Fig_5_fasted"
@@ -820,14 +876,19 @@ def model1_dynamic_range_glucose_contribution():
     hook_in_each_iteration_kwargs = {}
     hook_after_all_iterations = final_result_processing_and_plotting
     hook_after_all_iterations_kwargs = {'output_direct': output_direct}
+    # solver_func = model_solver_slsqp_parallel
+    solver_func = model_solver_slsqp_parallel_pool
 
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "lactate"], ["glucose", "pyruvate", "lactate"])
-    model_solver_slsqp_parallel(
+    start = time.time()
+    solver_func(
         data_collection, data_collection_func, data_collection_kwargs, parameter_construction_func,
         parameter_construction_kwargs, hook_in_each_iteration, hook_in_each_iteration_kwargs,
         hook_after_all_iterations, hook_after_all_iterations_kwargs)
+    duration = time.time() - start
+    print("Time elapsed: {:.3f}s".format(duration))
 
 
 def main():
