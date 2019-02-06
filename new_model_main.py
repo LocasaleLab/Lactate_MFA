@@ -6,7 +6,6 @@ from functools import partial
 import time
 
 import numpy as np
-import cvxopt
 from scipy.misc import comb as scipy_comb
 import matplotlib.pyplot as plt
 import scipy.optimize
@@ -95,77 +94,6 @@ def collect_all_data(
         return result_matrix
 
 
-def solve_flux_model_cvxopt(
-        balance_matrix, balance_right_side, mid_matrix, mid_right_side, min_flux_value=1, max_flux_value=10000):
-    var_num = balance_matrix.shape[1]
-    cvx_matrix = cvxopt.matrix
-    raw_matrix_a = mid_matrix
-    raw_vector_b = mid_right_side.reshape([-1, 1])
-    matrix_p = cvx_matrix(raw_matrix_a.T @ raw_matrix_a)
-    vector_q = cvx_matrix(- raw_matrix_a.T @ raw_vector_b)
-
-    matrix_g = cvx_matrix(np.vstack([-1 * np.identity(var_num), np.identity(var_num)]))
-    matrix_h = cvx_matrix(np.vstack([-min_flux_value * np.ones([var_num, 1]), max_flux_value * np.ones([var_num, 1])]))
-    matrix_a = cvx_matrix(balance_matrix)
-    matrix_b = cvx_matrix(balance_right_side.reshape([-1, 1]))
-
-    result = cvxopt.solvers.qp(matrix_p, vector_q, matrix_g, matrix_h, matrix_a, matrix_b)
-    result_array = np.array(result['x'])
-    print("Result: {}".format(result_array))
-    obj_value = result['primal objective'] * 2 + raw_vector_b.T @ raw_vector_b
-    print("Objective function: {}".format(obj_value))
-    return result_array.reshape([-1])
-
-
-def sentence_recognition_cvxopt(
-        balance_list: list, mid_constraint_list: list, var_dict: dict, constant_flux_dict: dict):
-    var_num = len(var_dict)
-    balance_array_list = []
-    balance_right_side_list = []
-    for balance_dict in balance_list:
-        constant = 0
-        new_balance_array = np.zeros(var_num)
-        flux_name_list = balance_dict['input'] + balance_dict['output']
-        value_list = [-1 for _ in balance_dict['input']] + [1 for _ in balance_dict['output']]
-        for flux_name, value in zip(flux_name_list, value_list):
-            try:
-                flux_index = var_dict[flux_name]
-            except KeyError:
-                constant -= value * constant_flux_dict[flux_name]
-            else:
-                new_balance_array[flux_index] = value
-        balance_array_list.append(new_balance_array)
-        balance_right_side_list.append(constant)
-
-    mid_array_list = []
-    mid_right_side_list = []
-    for mid_constraint_dict in mid_constraint_list:
-        target_vector = mid_constraint_dict[target_label]
-        vector_dim = len(target_vector)
-        new_mid_array_list = [np.zeros(var_num) for _ in range(vector_dim)]
-        constant_array = np.zeros(vector_dim)
-        for flux_name, vector in mid_constraint_dict.items():
-            if flux_name == target_label:
-                continue
-            else:
-                normalized_vector = vector - target_vector
-            try:
-                flux_index = var_dict[flux_name]
-            except KeyError:
-                constant_array -= constant_flux_dict[flux_name] * normalized_vector
-            else:
-                for index, vector_value in enumerate(normalized_vector):
-                    new_mid_array_list[index][flux_index] = vector_value
-        mid_array_list.extend(new_mid_array_list)
-        mid_right_side_list.extend(constant_array)
-
-    balance_matrix = np.array(balance_array_list)
-    balance_right_side = np.array(balance_right_side_list)
-    mid_matrix = np.array(mid_array_list)
-    mid_right_side = np.array(mid_right_side_list)
-    return balance_matrix, balance_right_side, mid_matrix, mid_right_side
-
-
 def gradient_validation(function_value_func, jacobian_func, test_vector: np.ndarray):
     derivative_from_jacobian_func = jacobian_func(test_vector)
     variation_rate = 1e-3
@@ -184,26 +112,25 @@ def gradient_validation(function_value_func, jacobian_func, test_vector: np.ndar
     print("Derivation from original function: {}".format(derivative_from_function))
 
 
-# Construct all parameters except the constant flux, which is modified by the function:
-# sample_and_one_case_solver_slsqp
-def constant_parameter_constructor_slsqp(
-        balance_list: list, mid_constraint_list: list, complete_flux_dict: dict,
-        min_flux_value, max_flux_value):
-    complete_var_num = len(complete_flux_dict)
-    partial_balance_multiply_array_list = []
-    partial_balance_constant_vector_list = []
+def flux_balance_constraint_constructor(balance_list, complete_flux_dict):
+    flux_balance_multiply_array_list = []
+    flux_balance_constant_vector_list = []
     for balance_dict in balance_list:
-        new_balance_array = np.zeros(complete_var_num)
+        new_balance_array = np.zeros(len(complete_flux_dict))
         flux_name_list = balance_dict['input'] + balance_dict['output']
         value_list = [-1 for _ in balance_dict['input']] + [1 for _ in balance_dict['output']]
         for flux_name, value in zip(flux_name_list, value_list):
             flux_index = complete_flux_dict[flux_name]
             new_balance_array[flux_index] = value
-        partial_balance_multiply_array_list.append(new_balance_array)
-        partial_balance_constant_vector_list.append(0)
-    partial_balance_matrix = np.array(partial_balance_multiply_array_list)
-    partial_balance_constant_vector = np.array(partial_balance_constant_vector_list)
+        flux_balance_multiply_array_list.append(new_balance_array)
+        flux_balance_constant_vector_list.append(0)
+    flux_balance_matrix = np.array(flux_balance_multiply_array_list)
+    flux_balance_constant_vector = np.array(flux_balance_constant_vector_list)
+    return flux_balance_matrix, flux_balance_constant_vector
 
+
+def mid_constraint_constructor(mid_constraint_list, complete_flux_dict):
+    complete_var_num = len(complete_flux_dict)
     substrate_mid_matrix_list = []
     flux_sum_matrix_list = []
     target_mid_vector_list = []
@@ -226,7 +153,24 @@ def constant_parameter_constructor_slsqp(
     flux_sum_matrix = np.array(flux_sum_matrix_list)
     target_mid_vector = np.hstack(target_mid_vector_list)
     optimal_obj_value = -np.sum(target_mid_vector * np.log(target_mid_vector))
+    return substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value
 
+
+def constant_flux_constraint_constructor(constant_flux_dict, complete_flux_dict):
+    constant_flux_multiply_array_list = []
+    constant_flux_constant_vector_list = []
+    for constant_flux, value in constant_flux_dict.items():
+        new_balance_array = np.zeros(len(complete_flux_dict))
+        flux_index = complete_flux_dict[constant_flux]
+        new_balance_array[flux_index] = 1
+        constant_flux_multiply_array_list.append(new_balance_array)
+        constant_flux_constant_vector_list.append(-value)
+    constant_flux_matrix = np.array(constant_flux_multiply_array_list)
+    constant_constant_vector = np.array(constant_flux_constant_vector_list)
+    return constant_flux_matrix, constant_constant_vector
+
+
+def cross_entropy_obj_func_constructor(substrate_mid_matrix, flux_sum_matrix, target_mid_vector):
     def cross_entropy_objective_func(complete_vector):
         # complete_vector = np.hstack([f_vector, constant_flux_array]).reshape([-1, 1])
         complete_vector = complete_vector.reshape([-1, 1])
@@ -234,166 +178,75 @@ def constant_parameter_constructor_slsqp(
         cross_entropy = -target_mid_vector.reshape([1, -1]) @ np.log(predicted_mid_vector)
         return cross_entropy
 
-    def cross_entropy_jacobi(complete_vector):
+    return cross_entropy_objective_func
+
+
+def cross_entropy_jacobi_func_constructor(substrate_mid_matrix, flux_sum_matrix, target_mid_vector):
+    def cross_entropy_jacobi_func(complete_vector):
         complete_vector = complete_vector.reshape([-1, 1])
         substrate_mid_part = substrate_mid_matrix / (substrate_mid_matrix @ complete_vector)
         flux_sum_part = flux_sum_matrix / (flux_sum_matrix @ complete_vector)
         jacobian_vector = target_mid_vector.reshape([1, -1]) @ (flux_sum_part - substrate_mid_part)
         return jacobian_vector.reshape([-1])
 
-    return (
-        partial_balance_matrix, partial_balance_constant_vector, cross_entropy_objective_func,
-        cross_entropy_jacobi, optimal_obj_value)
+    return cross_entropy_jacobi_func
 
 
-def sample_and_one_case_solver_slsqp(
-        partial_balance_matrix, partial_balance_constant_vector, cross_entropy_objective_func, cross_entropy_jacobi,
-        optimal_obj_value, complete_flux_dict: dict, constant_flux_dict: dict, min_flux_value, max_flux_value):
-    complete_var_num = len(complete_flux_dict)
-    complement_balance_multiply_array_list = []
-    complement_balance_constant_vector_list = []
-    for constant_flux, value in constant_flux_dict.items():
-        new_balance_array = np.zeros(complete_var_num)
-        flux_index = complete_flux_dict[constant_flux]
-        new_balance_array[flux_index] = 1
-        complement_balance_multiply_array_list.append(new_balance_array)
-        complement_balance_constant_vector_list.append(-value)
-    complete_balance_matrix = np.vstack(
-        [partial_balance_matrix, np.array(complement_balance_multiply_array_list)])
-    complete_balance_vector = np.hstack(
-        [partial_balance_constant_vector, np.array(complement_balance_constant_vector_list)])
-
+def eq_func_constructor(complete_balance_matrix, complete_balance_vector):
     def eq_func(complete_vector):
         result = complete_balance_matrix @ complete_vector.reshape([-1, 1]) + complete_balance_vector.reshape([-1, 1])
         return result.reshape([-1])
 
+    return eq_func
+
+
+def eq_func_jacob_constructor(complete_balance_matrix, complete_balance_vector):
     def eq_func_jacob(complete_vector):
         return complete_balance_matrix
 
-    def start_point_generator(maximal_failed_time=5):
-        a_eq = complete_balance_matrix
-        b_eq = -complete_balance_vector
-        lp_lb = min_flux_value + 10
-        lb_ub = max_flux_value / 10
-        result = None
-        failed_time = 0
-        while failed_time < maximal_failed_time:
-            random_obj = np.random.random(a_eq.shape[1]) - 0.2
-            res = scipy.optimize.linprog(
-                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lb_ub), options={})  # "disp": True
-            if res.success:
-                result = np.array(res.x)
-                break
-            failed_time += 1
-        return result
+    return eq_func_jacob
+
+
+def start_point_generator(
+        complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value, maximal_failed_time=5):
+    a_eq = complete_balance_matrix
+    b_eq = -complete_balance_vector
+    lp_lb = min_flux_value + 10
+    lb_ub = max_flux_value / 10
+    result = None
+    failed_time = 0
+    while failed_time < maximal_failed_time:
+        random_obj = np.random.random(a_eq.shape[1]) - 0.4
+        res = scipy.optimize.linprog(
+            random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lb_ub), options={})  # "disp": True
+        if res.success:
+            result = np.array(res.x)
+            break
+        failed_time += 1
+    return result
+
+
+def sample_and_one_case_solver_slsqp(
+        flux_balance_matrix, flux_balance_constant_vector, substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
+        optimal_obj_value, complete_flux_dict: dict, constant_flux_dict: dict, min_flux_value, max_flux_value,
+        optimization_repeat_time, **other_parameter_dict):
+    constant_flux_matrix, constant_constant_vector = constant_flux_constraint_constructor(
+        constant_flux_dict, complete_flux_dict)
+    complete_balance_matrix = np.vstack(
+        [flux_balance_matrix, constant_flux_matrix])
+    complete_balance_vector = np.hstack(
+        [flux_balance_constant_vector, constant_constant_vector])
+    cross_entropy_objective_func = cross_entropy_obj_func_constructor(
+        substrate_mid_matrix, flux_sum_matrix, target_mid_vector)
+    cross_entropy_jacobi_func = cross_entropy_jacobi_func_constructor(
+        substrate_mid_matrix, flux_sum_matrix, target_mid_vector)
+    eq_func = eq_func_constructor(complete_balance_matrix, complete_balance_vector)
+    eq_func_jacob = eq_func_jacob_constructor(complete_balance_matrix, complete_balance_vector)
 
     eq_cons = {'type': 'eq', 'fun': eq_func, 'jac': eq_func_jacob}
     bounds = scipy.optimize.Bounds(min_flux_value, max_flux_value)
-    start_vector = start_point_generator()
-    # gradient_validation(cross_entropy_objective_func, cross_entropy_jacobi, start_vector)
-    if start_vector is None:
-        result_dict = {}
-        obj_value = -1
-        success = False
-    else:
-        current_result = scipy.optimize.minimize(
-            cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi,
-            constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bounds)  # 'disp': True,
-        result_dict = {flux_name: flux_value for flux_name, flux_value in
-                       zip(complete_flux_dict.keys(), current_result.x)}
-        obj_value = current_result.fun
-        success = current_result.success
-    return Result(result_dict, obj_value, success, optimal_obj_value)
-
-
-def one_case_solver_slsqp(
-        balance_list: list, mid_constraint_list: list, complete_flux_dict: dict, constant_flux_dict: dict,
-        min_flux_value, max_flux_value, optimization_repeat_time):
-    complete_var_num = len(complete_flux_dict)
-    balance_multiply_array_list = []
-    balance_constant_vector_list = []
-    for balance_dict in balance_list:
-        new_balance_array = np.zeros(complete_var_num)
-        flux_name_list = balance_dict['input'] + balance_dict['output']
-        value_list = [-1 for _ in balance_dict['input']] + [1 for _ in balance_dict['output']]
-        for flux_name, value in zip(flux_name_list, value_list):
-            flux_index = complete_flux_dict[flux_name]
-            new_balance_array[flux_index] = value
-        balance_multiply_array_list.append(new_balance_array)
-        balance_constant_vector_list.append(0)
-    for constant_flux, value in constant_flux_dict.items():
-        new_balance_array = np.zeros(complete_var_num)
-        flux_index = complete_flux_dict[constant_flux]
-        new_balance_array[flux_index] = 1
-        balance_multiply_array_list.append(new_balance_array)
-        balance_constant_vector_list.append(-value)
-    balance_matrix = np.array(balance_multiply_array_list)
-    balance_constant_vector = np.array(balance_constant_vector_list)
-
-    substrate_mid_matrix_list = []
-    flux_sum_matrix_list = []
-    target_mid_vector_list = []
-    for mid_constraint_dict in mid_constraint_list:
-        target_mid_vector = mid_constraint_dict[target_label]
-        vector_dim = len(target_mid_vector)
-        new_substrate_mid_matrix_list = [np.zeros(complete_var_num) for _ in range(vector_dim)]
-        new_flux_sum_matrix_list = [np.zeros(complete_var_num) for _ in range(vector_dim)]
-        target_mid_vector_list.append(target_mid_vector)
-        for flux_name, vector in mid_constraint_dict.items():
-            if flux_name == target_label:
-                continue
-            flux_index = complete_flux_dict[flux_name]
-            for index, vector_value in enumerate(vector):
-                new_substrate_mid_matrix_list[index][flux_index] = vector_value
-                new_flux_sum_matrix_list[index][flux_index] = 1
-        substrate_mid_matrix_list.extend(new_substrate_mid_matrix_list)
-        flux_sum_matrix_list.extend(new_flux_sum_matrix_list)
-    substrate_mid_matrix = np.array(substrate_mid_matrix_list)
-    flux_sum_matrix = np.array(flux_sum_matrix_list)
-    target_mid_vector = np.hstack(target_mid_vector_list)
-    optimal_obj_value = -np.sum(target_mid_vector * np.log(target_mid_vector))
-
-    def cross_entropy_objective_func(complete_vector):
-        # complete_vector = np.hstack([f_vector, constant_flux_array]).reshape([-1, 1])
-        complete_vector = complete_vector.reshape([-1, 1])
-        predicted_mid_vector = substrate_mid_matrix @ complete_vector / (flux_sum_matrix @ complete_vector)
-        cross_entropy = -target_mid_vector.reshape([1, -1]) @ np.log(predicted_mid_vector)
-        return cross_entropy
-
-    def cross_entropy_jacobi(complete_vector):
-        complete_vector = complete_vector.reshape([-1, 1])
-        substrate_mid_part = substrate_mid_matrix / (substrate_mid_matrix @ complete_vector)
-        flux_sum_part = flux_sum_matrix / (flux_sum_matrix @ complete_vector)
-        jacobian_vector = target_mid_vector.reshape([1, -1]) @ (flux_sum_part - substrate_mid_part)
-        return jacobian_vector.reshape([-1])
-
-    def eq_func(complete_vector):
-        result = balance_matrix @ complete_vector.reshape([-1, 1]) + balance_constant_vector.reshape([-1, 1])
-        return result.reshape([-1])
-
-    def eq_func_jacob(complete_vector):
-        return balance_matrix
-
-    def start_point_generator(maximal_failed_time=5):
-        a_eq = balance_matrix
-        b_eq = -balance_constant_vector
-        lp_lb = min_flux_value + 10
-        lb_ub = max_flux_value / 10
-        result = None
-        failed_time = 0
-        while failed_time < maximal_failed_time:
-            random_obj = np.random.random(a_eq.shape[1]) - 0.2
-            res = scipy.optimize.linprog(
-                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lb_ub), options={})  # "disp": True
-            if res.success:
-                result = np.array(res.x)
-                break
-            failed_time += 1
-        return result
-
-    eq_cons = {'type': 'eq', 'fun': eq_func, 'jac': eq_func_jacob}
-    bounds = scipy.optimize.Bounds(min_flux_value, max_flux_value)
-    start_vector = start_point_generator()
+    start_vector = start_point_generator(
+        complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
     # gradient_validation(cross_entropy_objective_func, cross_entropy_jacobi, start_vector)
     if start_vector is None:
         result_dict = {}
@@ -404,9 +257,10 @@ def one_case_solver_slsqp(
         obj_value = 999999
         success = False
         for _ in range(optimization_repeat_time):
-            start_vector = start_point_generator()
+            start_vector = start_point_generator(
+                complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
             current_result = scipy.optimize.minimize(
-                cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi,
+                cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi_func,
                 constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bounds)  # 'disp': True,
             if current_result.success and current_result.fun < obj_value:
                 result_dict = {
@@ -463,39 +317,12 @@ def result_evaluation(result_dict, constant_dict, mid_constraint_list):
             mid_constraint_dict, calculate_vector, target_vector))
 
 
-def model_construction_test():
-    var_list = ['F1', 'F2', 'F3', 'F4', 'Foutput']
-    input_mid_vector = np.array([1.0, 0])
-    node1_mid_vector = np.array([0.9, 0.1])
-    node2_mid_vector = np.array([0.7, 0.3])
-    node3_mid_vector = np.array([0.1, 0.9])
-    var_dict = {var: index for index, var in enumerate(var_list)}
-    constant_flux_dict = {'Finput': 100}
-    node1_balance_eq = {'input': ['F2', 'Finput'], 'output': ['F1']}
-    node1_mid_eq = {'Finput': input_mid_vector, 'F2': node2_mid_vector, target_label: node1_mid_vector}
-    node2_balance_eq = {'input': ['F1', 'F4'], 'output': ['F2', 'F3']}
-    node2_mid_eq = {'F1': node1_mid_vector, 'F4': node3_mid_vector, target_label: node2_mid_vector}
-    node3_balance_eq = {'input': ['F3'], 'output': ['F4', 'Foutput']}
-    balance_list = [node1_balance_eq, node2_balance_eq, node3_balance_eq]
-    mid_constraint_list = [node1_mid_eq, node2_mid_eq]
-    balance_matrix, balance_right_side, mid_matrix, mid_right_side = sentence_recognition_cvxopt(
-        balance_list, mid_constraint_list, var_dict, constant_flux_dict)
-    print(balance_matrix)
-    print(balance_right_side)
-    print(mid_matrix)
-    print(mid_right_side)
-    float_type = 'float64'
-    result = solve_flux_model_cvxopt(
-        balance_matrix.astype(dtype=float_type), balance_right_side.astype(dtype=float_type),
-        mid_matrix.astype(dtype=float_type), mid_right_side.astype(dtype=float_type))
-    print(result)
-
-
-def dynamic_range_model1(model_mid_data_dict: dict):
-    complete_var_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                        ['Fcirc_glu', 'Fcirc_lac']
-    complete_var_dict = {var: i for i, var in enumerate(complete_var_list)}
-    fixed_constant_dict = {'Fcirc_glu': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct):
+    output_direct = "{}/model1".format(total_output_direct)
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fcirc_glu', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glu': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
 
     if platform.node() == 'BaranLiu-PC':
         f1_num = 51
@@ -508,10 +335,10 @@ def dynamic_range_model1(model_mid_data_dict: dict):
     else:
         f1_num = 1000
         f1_range = [0, 150]
-        f1_display_interv = 300
+        f1_display_interv = 250
         g2_num = 1000
         g2_range = [0, 150]
-        g2_display_interv = 300
+        g2_display_interv = 250
         parallel_num = 12
 
     f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
@@ -519,38 +346,39 @@ def dynamic_range_model1(model_mid_data_dict: dict):
     min_flux_value = 1
     max_flux_value = 5000
     optimization_repeat_time = 8
-    obj_tolerance = 0.15
+    obj_tolerance = 0.13
+
+    balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
+    flux_balance_matrix, flux_balance_constant_vector = flux_balance_constraint_constructor(
+        balance_list, complete_flux_dict)
+    substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value = mid_constraint_constructor(
+        mid_constraint_list, complete_flux_dict)
 
     iter_parameter_list = []
-    balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
-    const_parameter_dict = {
-        'balance_list': balance_list, 'mid_constraint_list': mid_constraint_list,
-        'complete_flux_dict': complete_var_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'optimization_repeat_time': optimization_repeat_time}
     matrix_loc_list = []
     for f1_index, f1 in enumerate(f1_free_flux):
         for g2_index, g2 in enumerate(g2_free_flux):
-            new_constant_flux_dict = dict(fixed_constant_dict)
+            new_constant_flux_dict = dict(constant_flux_dict)
             new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
             var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
             iter_parameter_list.append(var_parameter_dict)
             matrix_loc_list.append((f1_index, g2_index))
-    other_parameter_dict = {
+    const_parameter_dict = {
+        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
+        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+
+        'optimization_repeat_time': optimization_repeat_time,
         'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
-        'obj_tolerance': obj_tolerance, 'parallel_num': parallel_num}
-    return const_parameter_dict, iter_parameter_list, other_parameter_dict
+        'obj_tolerance': obj_tolerance, 'parallel_num': parallel_num,
+        'output_direct': output_direct
+    }
+    return const_parameter_dict, iter_parameter_list
 
 
-def model1_general_settings(complete_var_dict=False):
-    var_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)]
-    constant_flux_dict = {'F10': 100}
-    if not complete_var_dict:
-        var_list = [var for var in var_list if var not in constant_flux_dict]
-    var_dict = {var: i for i, var in enumerate(var_list)}
-    return var_dict, constant_flux_dict
-
-
-def model1_data_collection(
+def mid_data_loader(
         data_collection_dict, label_list, mouse_id_list, source_tissue_marker, sink_tissue_marker):
     mid_data_dict = {
         'glc_source': collect_all_data(
@@ -561,6 +389,8 @@ def model1_data_collection(
             data_collection_dict, 'lactate', label_list, source_tissue_marker, mouse_id_list),
         'glc_plasma': collect_all_data(
             data_collection_dict, 'glucose', label_list, plasma_marker, mouse_id_list),
+        'pyr_plasma': collect_all_data(
+            data_collection_dict, 'pyruvate', label_list, plasma_marker, mouse_id_list),
         'lac_plasma': collect_all_data(
             data_collection_dict, 'lactate', label_list, plasma_marker, mouse_id_list),
         'glc_sink': collect_all_data(
@@ -628,9 +458,7 @@ def model1_construction(mid_data_dict):
     return balance_list, mid_constraint_list
 
 
-def result_processing_each_iteration(
-        result: Result, const_parameter_dict, var_parameter_dict, other_parameter_dict):
-    obj_tolerance = other_parameter_dict['obj_tolerance']
+def result_processing_each_iteration(result: Result, obj_tolerance, **other_parameter_dict):
     processed_dict = {}
     minimal_obj_value = result.minimal_obj_value
     current_obj_value = result.obj_value
@@ -655,11 +483,11 @@ def model1_print_result(result_dict, constant_flux_dict):
 
 
 def final_result_processing_and_plotting(
-        result_list, processed_result_list, const_parameter_dict, var_parameter_list, other_parameter_dict,
-        output_direct):
-    f1_free_flux: FreeVariable = other_parameter_dict['f1_free_flux']
-    g2_free_flux: FreeVariable = other_parameter_dict['g2_free_flux']
-    matrix_loc_list = other_parameter_dict['matrix_loc_list']
+        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
+    f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
+    g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
+    matrix_loc_list = const_parameter_dict['matrix_loc_list']
+    output_direct = const_parameter_dict['output_direct']
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     glucose_contri_matrix = np.zeros_like(valid_matrix)
@@ -725,113 +553,22 @@ def final_result_processing_and_plotting(
         plt.show()
 
 
-def model_solver_cvxopt(
-        data_collection_obj, general_setting_func, general_setting_kwargs,
-        data_collection_func, data_collection_kwargs, model_construction_func, print_result_func):
-    var_dict, constant_flux_dict = general_setting_func(**general_setting_kwargs)
-    raw_data_collection_dict = data_collection_obj.mid_data
-    model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
-    balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
-    balance_matrix, balance_right_side, mid_matrix, mid_right_side = sentence_recognition_cvxopt(
-        balance_list, mid_constraint_list, var_dict, constant_flux_dict)
-    float_type = 'float64'
-    result = solve_flux_model_cvxopt(
-        balance_matrix.astype(dtype=float_type), balance_right_side.astype(dtype=float_type),
-        mid_matrix.astype(dtype=float_type), mid_right_side.astype(dtype=float_type))
-    result_dict = {flux_name: flux_value for flux_name, flux_value in zip(var_dict.keys(), result)}
-    print_result_func(result_dict, constant_flux_dict)
-    result_evaluation(result_dict, constant_flux_dict, mid_constraint_list)
-    return result
-
-
-def model_solver_one_list(
-        var_parameter_list, index, result_queue: mp.Queue, const_parameter_dict,
-        hook_in_each_iteration, other_parameter_dict, hook_in_each_iteration_kwargs):
-    current_result_list = []
-    current_hook_result_list = []
-    count = 0
-    total_count = len(var_parameter_list)
-    for var_parameter_dict in var_parameter_list:
-        result = one_case_solver_slsqp(**const_parameter_dict, **var_parameter_dict)
-        current_result_list.append(result)
-        hook_result = hook_in_each_iteration(
-            result, const_parameter_dict, var_parameter_dict, other_parameter_dict,
-            **hook_in_each_iteration_kwargs)
-        current_hook_result_list.append(hook_result)
-        count += 1
-        if count % 100 == 0:
-            print("Process {}: {} ({:.2f}) completed".format(index, count, count / total_count))
-    result_queue.put((index, current_result_list, current_hook_result_list))
-
-
-def model_solver_slsqp_parallel(
-        data_collection_obj, data_collection_func, data_collection_kwargs, parameter_construction_func,
-        parameter_construction_kwargs, hook_in_each_iteration, hook_in_each_iteration_kwargs,
-        hook_after_all_iterations, hook_after_all_iterations_kwargs):
-    raw_data_collection_dict = data_collection_obj.mid_data
-    model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
-    const_parameter_dict, var_parameter_list, other_parameter_dict = parameter_construction_func(
-        model_mid_data_dict, **parameter_construction_kwargs)
-    parallel_num = other_parameter_dict['parallel_num']
-
-    q = mp.Queue()
-    total_iter_num = len(var_parameter_list)
-    sub_list_length = int(np.ceil(total_iter_num / parallel_num))
-    process_list = []
-    for i in range(parallel_num):
-        start = sub_list_length * i
-        end = min(sub_list_length * (i + 1), total_iter_num)
-        this_var_parameter_list = var_parameter_list[start:end]
-        p = mp.Process(target=model_solver_one_list, args=(
-            this_var_parameter_list, i, q, const_parameter_dict, hook_in_each_iteration,
-            other_parameter_dict, hook_in_each_iteration_kwargs))
-        p.start()
-        process_list.append(p)
-
-    tmp_result_list = [0] * parallel_num
-    tmp_hook_result_list = [0] * parallel_num
-    complete_process_count = 0
-    while complete_process_count < parallel_num:
-        index, current_result_list, current_hook_result_list = q.get()
-        tmp_result_list[index] = current_result_list
-        tmp_hook_result_list[index] = current_hook_result_list
-        process_list[index].join()
-        complete_process_count += 1
-    result_list = []
-    hook_result_list = []
-    for current_result_list, current_hook_result_list in zip(tmp_result_list, tmp_hook_result_list):
-        result_list.extend(current_result_list)
-        hook_result_list.extend(current_hook_result_list)
-    print(len(result_list))
-    print(result_list[0])
-    print(len(hook_result_list))
-    print(hook_result_list[0])
-    hook_after_all_iterations(
-        result_list, hook_result_list, const_parameter_dict, var_parameter_list, other_parameter_dict,
-        **hook_after_all_iterations_kwargs)
-
-
 def model_solver_single(
-        var_parameter_dict, const_parameter_dict, other_parameter_dict,
-        hook_in_each_iteration, hook_in_each_iteration_kwargs):
+        var_parameter_dict, const_parameter_dict, hook_in_each_iteration):
     # var_parameter_dict, q = complete_parameter_tuple
-    result = one_case_solver_slsqp(**const_parameter_dict, **var_parameter_dict)
-    hook_result = hook_in_each_iteration(
-        result, const_parameter_dict, var_parameter_dict, other_parameter_dict,
-        **hook_in_each_iteration_kwargs)
-    # q.put(1)
+    result = sample_and_one_case_solver_slsqp(**const_parameter_dict, **var_parameter_dict)
+    hook_result = hook_in_each_iteration(result, **const_parameter_dict, **var_parameter_dict)
     return result, hook_result
 
 
 def model_solver_slsqp_parallel_pool(
         data_collection_obj, data_collection_func, data_collection_kwargs, parameter_construction_func,
-        parameter_construction_kwargs, hook_in_each_iteration, hook_in_each_iteration_kwargs,
-        hook_after_all_iterations, hook_after_all_iterations_kwargs):
+        parameter_construction_kwargs, hook_in_each_iteration, hook_after_all_iterations):
     raw_data_collection_dict = data_collection_obj.mid_data
     model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
-    const_parameter_dict, var_parameter_list, other_parameter_dict = parameter_construction_func(
+    const_parameter_dict, var_parameter_list = parameter_construction_func(
         model_mid_data_dict, **parameter_construction_kwargs)
-    parallel_num = other_parameter_dict['parallel_num']
+    parallel_num = const_parameter_dict['parallel_num']
 
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
@@ -843,10 +580,9 @@ def model_solver_slsqp_parallel_pool(
         raw_result_iter = pool.imap(
             partial(
                 model_solver_single, const_parameter_dict=const_parameter_dict,
-                other_parameter_dict=other_parameter_dict, hook_in_each_iteration=hook_in_each_iteration,
-                hook_in_each_iteration_kwargs=hook_in_each_iteration_kwargs),
+                hook_in_each_iteration=hook_in_each_iteration),
             var_parameter_list, chunk_size)
-        raw_result_list = list(tqdm.tqdm(raw_result_iter, total=len(var_parameter_list)))
+        raw_result_list = list(tqdm.tqdm(raw_result_iter, total=len(var_parameter_list), smoothing=0))
 
     result_iter, hook_result_iter = zip(*raw_result_list)
 
@@ -854,28 +590,24 @@ def model_solver_slsqp_parallel_pool(
     # print(result_list[0])
     # print(len(hook_result_list))
     # print(hook_result_list[0])
-    hook_after_all_iterations(
-        result_iter, hook_result_iter, const_parameter_dict, var_parameter_list, other_parameter_dict,
-        **hook_after_all_iterations_kwargs)
+    hook_after_all_iterations(result_iter, hook_result_iter, const_parameter_dict, var_parameter_list)
 
 
 def model1_dynamic_range_glucose_contribution():
     file_path = "data_collection.xlsx"
     experiment_name_prefix = "Sup_Fig_5_fasted"
-    output_direct = "new_models/model1"
+    total_output_direct = "new_models"
     # label_list = ["glucose", "lactate"]
     label_list = ["glucose"]
-    data_collection_func = model1_data_collection
+    data_collection_func = mid_data_loader
     data_collection_kwargs = {
         'label_list': label_list, 'mouse_id_list': ['M1'],
         'source_tissue_marker': liver_marker, 'sink_tissue_marker': heart_marker}
 
     parameter_construction_func = dynamic_range_model1
-    parameter_construction_kwargs = {}
+    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration
-    hook_in_each_iteration_kwargs = {}
     hook_after_all_iterations = final_result_processing_and_plotting
-    hook_after_all_iterations_kwargs = {'output_direct': output_direct}
     # solver_func = model_solver_slsqp_parallel
     solver_func = model_solver_slsqp_parallel_pool
 
@@ -885,8 +617,7 @@ def model1_dynamic_range_glucose_contribution():
     start = time.time()
     solver_func(
         data_collection, data_collection_func, data_collection_kwargs, parameter_construction_func,
-        parameter_construction_kwargs, hook_in_each_iteration, hook_in_each_iteration_kwargs,
-        hook_after_all_iterations, hook_after_all_iterations_kwargs)
+        parameter_construction_kwargs, hook_in_each_iteration, hook_after_all_iterations)
     duration = time.time() - start
     print("Time elapsed: {:.3f}s".format(duration))
 

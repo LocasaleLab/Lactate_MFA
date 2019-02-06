@@ -551,10 +551,10 @@ def solve_net_contribution_fluxes_model3(data_collection, label_list):
     liver_marker = 'Lv'
     tissue_marker = heart_marker
 
-    dynamic_range_heatmap = False
-    contribution_heatmap = False
+    dynamic_range_heatmap = True
+    contribution_heatmap = True
     contribution_histgram = False
-    cycle_flux_heatmap = False
+    cycle_flux_heatmap = True
 
     f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
         data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
@@ -569,11 +569,11 @@ def solve_net_contribution_fluxes_model3(data_collection, label_list):
     f_circ_gluc = 150.9
     f_circ_lac = 374.4
     f_input = 100
-    x1_num = 500
+    x1_num = 1000
     x1_interv = 100
-    x1_limit = [25, 50]
+    x1_limit = [0, 150]
     x1_range = np.linspace(*x1_limit, x1_num + 1)
-    x2_num = 1500
+    x2_num = 1000
     x2_interv = 300
     x2_limit = [0, 150]
     x2_range = np.linspace(*x2_limit, x2_num + 1)
@@ -663,6 +663,7 @@ def solve_net_contribution_fluxes_model3(data_collection, label_list):
         fig.savefig("./Figures/model3/glucose_ratio_cbar.png", dpi=fig.dpi)
 
     plt.show()
+    print()
     # print("Min cycle flux: {} at point {}".format(min_cycle_flux, min_cycle_solution))
     # print("Max cycle flux: {} at point {}".format(max_cycle_flux, max_cycle_solution))
     # print("Min glucose contribution: {} at point {}".format(min_glucose_contri, min_glucose_solution))
@@ -1215,13 +1216,13 @@ def main():
     # solve_single_result_model3(data_collection, label_list)
     # solve_single_result_model4(data_collection, label_list)
     # solve_parameter_sensitivity_model3(data_collection, label_list)
-    # solve_net_contribution_fluxes_model3(data_collection, label_list)
+    solve_net_contribution_fluxes_model3(data_collection, label_list)
     # glucose_contribution_violin_model3(data_collection, label_list)
     # solve_net_contribution_fluxes_model4(data_collection, label_list)
     # solve_param_sensitivity(data_collection, label_list, solve_one_case_model3)
     # variation_analysis_model3(data_collection, label_list)
     # variation_analysis_model4(data_collection, label_list)
-    raw_data_plotting(data_collection, label_list)
+    # raw_data_plotting(data_collection, label_list)
 
 
 if __name__ == '__main__':
