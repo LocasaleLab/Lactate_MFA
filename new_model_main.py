@@ -4,6 +4,7 @@ import multiprocessing as mp
 import platform
 from functools import partial
 import time
+import os
 
 import numpy as np
 from scipy.misc import comb as scipy_comb
@@ -151,7 +152,8 @@ def mid_constraint_constructor(mid_constraint_list, complete_flux_dict):
         flux_sum_matrix_list.extend(new_flux_sum_matrix_list)
     substrate_mid_matrix = np.array(substrate_mid_matrix_list)
     flux_sum_matrix = np.array(flux_sum_matrix_list)
-    target_mid_vector = np.hstack(target_mid_vector_list)
+    eps = 1e-10
+    target_mid_vector = np.hstack(target_mid_vector_list) + eps
     optimal_obj_value = -np.sum(target_mid_vector * np.log(target_mid_vector))
     return substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value
 
@@ -211,8 +213,8 @@ def start_point_generator(
         complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value, maximal_failed_time=5):
     a_eq = complete_balance_matrix
     b_eq = -complete_balance_vector
-    lp_lb = min_flux_value + 10
-    lb_ub = max_flux_value / 10
+    lp_lb = min_flux_value
+    lb_ub = max_flux_value
     result = None
     failed_time = 0
     while failed_time < maximal_failed_time:
@@ -319,34 +321,32 @@ def result_evaluation(result_dict, constant_dict, mid_constraint_list):
 
 def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct):
     output_direct = "{}/model1".format(total_output_direct)
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
                          ['Fcirc_glu', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
     constant_flux_dict = {'Fcirc_glu': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
 
+    f1_range = [1, 150]
+    g2_range = [1, 150]
     if platform.node() == 'BaranLiu-PC':
         f1_num = 51
-        f1_range = [0, 150]
         f1_display_interv = 50
         g2_num = 51
-        g2_range = [0, 150]
         g2_display_interv = 50
-        parallel_num = 5
     else:
         f1_num = 1000
-        f1_range = [0, 150]
         f1_display_interv = 250
         g2_num = 1000
-        g2_range = [0, 150]
         g2_display_interv = 250
-        parallel_num = 12
 
     f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
     min_flux_value = 1
     max_flux_value = 5000
     optimization_repeat_time = 8
-    obj_tolerance = 0.13
+    obj_tolerance = 0.11
 
     balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = flux_balance_constraint_constructor(
@@ -372,8 +372,68 @@ def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct):
 
         'optimization_repeat_time': optimization_repeat_time,
         'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
-        'obj_tolerance': obj_tolerance, 'parallel_num': parallel_num,
-        'output_direct': output_direct
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
+    }
+    return const_parameter_dict, iter_parameter_list
+
+
+def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct):
+    output_direct = "{}/model2".format(total_output_direct)
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(9)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fin', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500}
+    #
+    # f1_range = [1, 250]
+    # g2_range = [1, 250]
+    min_flux_value = 1
+    max_flux_value = 8000
+    optimization_repeat_time = 8
+    obj_tolerance = 0.26
+    f1_range = [min_flux_value, max_flux_value]
+    g2_range = [min_flux_value, max_flux_value]
+
+    if platform.node() == 'BaranLiu-PC':
+        f1_num = 101
+        f1_display_interv = 100
+        g2_num = 101
+        g2_display_interv = 100
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
+
+    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+
+    balance_list, mid_constraint_list = model2_construction(model_mid_data_dict)
+    flux_balance_matrix, flux_balance_constant_vector = flux_balance_constraint_constructor(
+        balance_list, complete_flux_dict)
+    substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value = mid_constraint_constructor(
+        mid_constraint_list, complete_flux_dict)
+
+    iter_parameter_list = []
+    matrix_loc_list = []
+    for f1_index, f1 in enumerate(f1_free_flux):
+        for g2_index, g2 in enumerate(g2_free_flux):
+            new_constant_flux_dict = dict(constant_flux_dict)
+            new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
+            var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
+            iter_parameter_list.append(var_parameter_dict)
+            matrix_loc_list.append((f1_index, g2_index))
+    const_parameter_dict = {
+        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
+        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
     }
     return const_parameter_dict, iter_parameter_list
 
@@ -400,6 +460,7 @@ def mid_data_loader(
         'lac_sink': collect_all_data(
             data_collection_dict, 'lactate', label_list, sink_tissue_marker, mouse_id_list),
         'glc_natural': natural_dist(c13_ratio, 6),
+        'glc_infused': np.array([0, 0, 0, 0, 0, 0, 1], dtype='float'),
         'pyr_to_glc_source': collect_all_data(
             data_collection_dict, 'pyruvate', label_list, source_tissue_marker, mouse_id_list, convolve=True),
         'glc_to_pyr_source': collect_all_data(
@@ -410,6 +471,9 @@ def mid_data_loader(
             data_collection_dict, 'glucose', label_list, sink_tissue_marker, mouse_id_list, split=3)
     }
 
+    for name, mid_vector in mid_data_dict.items():
+        if abs(np.sum(mid_vector) - 1) > 0.001:
+            raise ValueError('Sum of MID is not 1: {}'.format(name))
     return mid_data_dict
 
 
@@ -454,6 +518,107 @@ def model1_construction(mid_data_dict):
     mid_constraint_list = [
         glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, glc_sink_mid_eq,
         pyr_sink_mid_eq, lac_sink_mid_eq]
+
+    return balance_list, mid_constraint_list
+
+
+def model2_construction(mid_data_dict):
+    # Balance equations:
+    glc_source_balance_eq = {'input': ['F1', 'F6'], 'output': ['F2', 'F5']}
+    pyr_source_balance_eq = {'input': ['F5', 'F7'], 'output': ['F6', 'F8', 'F9']}
+    lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4'], 'output': ['F3', 'G3']}
+    glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
+    pyr_sink_balance_eq = {'input': ['G5', 'G7'], 'output': ['G6', 'G8', 'G9']}
+    lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
+    lac_circ_balance_eq = {'input': ['F4', 'G4'], 'output': ['Fcirc_lac']}
+
+    # MID equations:
+
+    glc_source_mid_eq = {
+        'F1': mid_data_dict['glc_plasma'], 'F6': mid_data_dict['pyr_to_glc_source'],
+        target_label: mid_data_dict['glc_source']}
+    pyr_source_mid_eq = {
+        'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
+        target_label: mid_data_dict['pyr_source']}
+    lac_source_mid_eq = {
+        'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
+        target_label: mid_data_dict['lac_source']}
+    glc_sink_mid_eq = {
+        'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
+        target_label: mid_data_dict['glc_sink']}
+    pyr_sink_mid_eq = {
+        'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
+        target_label: mid_data_dict['pyr_sink']}
+    lac_sink_mid_eq = {
+        'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
+        target_label: mid_data_dict['lac_sink']}
+    glc_plasma_mid_eq = {
+        'F2': mid_data_dict['glc_source'], 'G2': mid_data_dict['glc_sink'],
+        'Fin': mid_data_dict['glc_natural'], target_label: mid_data_dict['glc_plasma']}
+
+    balance_list = [
+        glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
+        lac_plasma_balance_eq, glc_sink_balance_eq, pyr_sink_balance_eq, lac_sink_balance_eq,
+        lac_circ_balance_eq]
+    mid_constraint_list = [
+        glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, glc_sink_mid_eq,
+        pyr_sink_mid_eq, lac_sink_mid_eq, glc_plasma_mid_eq]
+
+    return balance_list, mid_constraint_list
+
+
+def model3_construction(mid_data_dict):
+    # Balance equations:
+    glc_source_balance_eq = {'input': ['F1', 'F6', 'F12'], 'output': ['F2', 'F5']}
+    pyr_source_balance_eq = {'input': ['F5', 'F7', 'F9'], 'output': ['F6', 'F8', 'F10', 'F11']}
+    lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2'], 'output': ['F1', 'G1', 'H1']}
+    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['F9', 'G9', 'H2']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'H2'], 'output': ['F3', 'G3', 'H3']}
+    glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
+    pyr_sink_balance_eq = {'input': ['G5', 'G7', 'G9'], 'output': ['G6', 'G8', 'G10', 'G11']}
+    lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
+    glc_circ_balance_eq = {'input': ['F2', 'G2'], 'output': ['Fcirc_glu']}
+    lac_circ_balance_eq = {'input': ['F4', 'G4'], 'output': ['Fcirc_lac']}
+    pyr_circ_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['Fcirc_pyr']}
+
+    # MID equations:
+
+    glc_source_mid_eq = {
+        'F1': mid_data_dict['glc_plasma'], 'F6': mid_data_dict['pyr_to_glc_source'],
+        'F10': mid_data_dict['glc_natural'], target_label: mid_data_dict['glc_source']}
+    pyr_source_mid_eq = {
+        'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
+        target_label: mid_data_dict['pyr_source']}
+    lac_source_mid_eq = {
+        'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
+        target_label: mid_data_dict['lac_source']}
+    lac_plasma_mid_eq = {
+        'G4': mid_data_dict['lac_sink'], 'F4': mid_data_dict['lac_source'],
+        'H2': mid_data_dict['pyr_plasma'], target_label: mid_data_dict['lac_plasma']}
+    pyr_plasma_mid_eq = {
+        'G10': mid_data_dict['pyr_sink'], 'F10': mid_data_dict['pyr_source'],
+        'H1': mid_data_dict['glc_plasma'], 'H3': mid_data_dict['lac_plasma'],
+        target_label: mid_data_dict['pyr_plasma']}
+    glc_sink_mid_eq = {
+        'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
+        target_label: mid_data_dict['glc_sink']}
+    pyr_sink_mid_eq = {
+        'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
+        target_label: mid_data_dict['pyr_sink']}
+    lac_sink_mid_eq = {
+        'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
+        target_label: mid_data_dict['lac_sink']}
+
+    balance_list = [
+        glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
+        pyr_plasma_balance_eq, lac_plasma_balance_eq, glc_sink_balance_eq, pyr_sink_balance_eq,
+        lac_sink_balance_eq, glc_circ_balance_eq, lac_circ_balance_eq, pyr_circ_balance_eq]
+    mid_constraint_list = [
+        glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, lac_plasma_mid_eq, pyr_plasma_mid_eq,
+        glc_sink_mid_eq, pyr_sink_mid_eq, lac_sink_mid_eq]
 
     return balance_list, mid_constraint_list
 
@@ -568,21 +733,26 @@ def model_solver_slsqp_parallel_pool(
     model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         model_mid_data_dict, **parameter_construction_kwargs)
-    parallel_num = const_parameter_dict['parallel_num']
 
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
     # result = pool.map_async(task, [(x, q) for x in range(10)])
 
+    if platform.node() == 'BaranLiu-PC':
+        chunk_size = 10
+        parallel_num = 7
+    else:
+        chunk_size = 50
+        parallel_num = 12
     pool = mp.Pool(processes=parallel_num)
-    chunk_size = 100
     with pool:
         raw_result_iter = pool.imap(
             partial(
                 model_solver_single, const_parameter_dict=const_parameter_dict,
                 hook_in_each_iteration=hook_in_each_iteration),
             var_parameter_list, chunk_size)
-        raw_result_list = list(tqdm.tqdm(raw_result_iter, total=len(var_parameter_list), smoothing=0))
+        raw_result_list = list(tqdm.tqdm(
+            raw_result_iter, total=len(var_parameter_list), smoothing=0, maxinterval=5))
 
     result_iter, hook_result_iter = zip(*raw_result_list)
 
@@ -613,7 +783,36 @@ def model1_dynamic_range_glucose_contribution():
 
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
-        data_collection, ["glucose", "lactate"], ["glucose", "pyruvate", "lactate"])
+        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
+    start = time.time()
+    solver_func(
+        data_collection, data_collection_func, data_collection_kwargs, parameter_construction_func,
+        parameter_construction_kwargs, hook_in_each_iteration, hook_after_all_iterations)
+    duration = time.time() - start
+    print("Time elapsed: {:.3f}s".format(duration))
+
+
+def model2_dynamic_range_glucose_contribution():
+    file_path = "data_collection_from_Dan.xlsx"
+    experiment_name_prefix = "no_tumor"
+    total_output_direct = "new_models"
+    # label_list = ["glucose", "lactate"]
+    label_list = ["glucose"]
+    data_collection_func = mid_data_loader
+    data_collection_kwargs = {
+        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'source_tissue_marker': liver_marker, 'sink_tissue_marker': muscle_marker}
+
+    parameter_construction_func = dynamic_range_model2
+    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
+    hook_in_each_iteration = result_processing_each_iteration
+    hook_after_all_iterations = final_result_processing_and_plotting
+    # solver_func = model_solver_slsqp_parallel
+    solver_func = model_solver_slsqp_parallel_pool
+
+    data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
+    data_collection = data_parser.data_checker(
+        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
     start = time.time()
     solver_func(
         data_collection, data_collection_func, data_collection_kwargs, parameter_construction_func,
@@ -626,7 +825,8 @@ def main():
     # file_path = "data_collection_from_Dan.xlsx"
     # experiment_name_prefix = "no_tumor"
     # label_list = ["glucose"]
-    model1_dynamic_range_glucose_contribution()
+    # model1_dynamic_range_glucose_contribution()
+    model2_dynamic_range_glucose_contribution()
 
 
 if __name__ == '__main__':

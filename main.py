@@ -554,7 +554,8 @@ def solve_net_contribution_fluxes_model3(data_collection, label_list):
     dynamic_range_heatmap = True
     contribution_heatmap = True
     contribution_histgram = False
-    cycle_flux_heatmap = True
+    cycle_flux_heatmap = False
+    contribution_violin_plot = True
 
     f1_f6_ratio_liver, f3_f8_ratio_liver, f5_f7_ratio_liver = solve_mid_distribution(
         data_collection.mid_data, label_list, dist_or_mean="mean", tissue_marker=liver_marker)
@@ -568,7 +569,7 @@ def solve_net_contribution_fluxes_model3(data_collection, label_list):
     c_tissue = f5_f7_ratio_tissue / (1 - f5_f7_ratio_tissue)
     f_circ_gluc = 150.9
     f_circ_lac = 374.4
-    f_input = 100
+    f_input = 50
     x1_num = 1000
     x1_interv = 100
     x1_limit = [0, 150]
@@ -661,6 +662,16 @@ def solve_net_contribution_fluxes_model3(data_collection, label_list):
         ax.remove()
         cbar.ax.set_ylabel('Glucose Contribution', rotation=-90, va="bottom")
         fig.savefig("./Figures/model3/glucose_ratio_cbar.png", dpi=fig.dpi)
+
+    if contribution_violin_plot:
+        glucose_contri_vector = glucose_contri_matrix.reshape([-1])
+        glucose_contri_vector = glucose_contri_vector[~np.isnan(glucose_contri_vector)]
+        contribution_variation_dict = {
+            "normal": glucose_contri_vector,
+        }
+        fig, ax = violin_plot(contribution_variation_dict)
+        # fig.savefig("./Figures/model4/glucose_contribution_violinplot_normal_{}_{}.png".format(
+        #     liver_marker, tissue_marker))
 
     plt.show()
     print()
@@ -1202,12 +1213,12 @@ def raw_data_plotting(data_collection, label_list):
 
 
 def main():
-    file_path = "data_collection.xlsx"
-    experiment_name_prefix = "Sup_Fig_5_fasted"
-    label_list = ["glucose", "lactate"]
-    # file_path = "data_collection_from_Dan.xlsx"
-    # experiment_name_prefix = "no_tumor"
-    # label_list = ["glucose"]
+    # file_path = "data_collection.xlsx"
+    # experiment_name_prefix = "Sup_Fig_5_fasted"
+    # label_list = ["glucose", "lactate"]
+    file_path = "data_collection_from_Dan.xlsx"
+    experiment_name_prefix = "no_tumor"
+    label_list = ["glucose"]
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "lactate"], ["glucose", "pyruvate", "lactate"])
@@ -1216,9 +1227,9 @@ def main():
     # solve_single_result_model3(data_collection, label_list)
     # solve_single_result_model4(data_collection, label_list)
     # solve_parameter_sensitivity_model3(data_collection, label_list)
-    solve_net_contribution_fluxes_model3(data_collection, label_list)
+    # solve_net_contribution_fluxes_model3(data_collection, label_list)
     # glucose_contribution_violin_model3(data_collection, label_list)
-    # solve_net_contribution_fluxes_model4(data_collection, label_list)
+    solve_net_contribution_fluxes_model4(data_collection, label_list)
     # solve_param_sensitivity(data_collection, label_list, solve_one_case_model3)
     # variation_analysis_model3(data_collection, label_list)
     # variation_analysis_model4(data_collection, label_list)
