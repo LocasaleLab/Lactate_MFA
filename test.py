@@ -388,26 +388,14 @@ def multiprocess_test():
 
 count_q = mp.Queue()
 
+from new_model_main import plot_ternary_scatter
 
-def multiprocess_test2():
-    pool = mp.Pool(processes=parallel_num)
-    chunk_size = 100
-    with pool:
-        async_result = pool.map_async(
-            partial(
-                model_solver_single, const_parameter_dict=const_parameter_dict,
-                other_parameter_dict=other_parameter_dict, hook_in_each_iteration=hook_in_each_iteration,
-                hook_in_each_iteration_kwargs=hook_in_each_iteration_kwargs),
-            var_parameter_list, chunk_size, callback)
 
-        count = 0
-        total_count = len(var_parameter_list)
-        while count < total_count:
-            b = count_q.get()
-            print(b)
-            count += 1
-            if count % 50 == 0:
-                print("Main process: {} ({:.3f}) completed".format(count, count / total_count))
+def ternary_test():
+    data_matrix = np.random.random([100, 3])
+    norm_data_matrix = data_matrix / np.sum(data_matrix, 1).reshape([-1, 1]) * 40
+    plot_ternary_scatter(norm_data_matrix)
+    plt.show()
 
 
 def main():
@@ -419,7 +407,8 @@ def main():
     # violin_test()
     # cvxopt_test()
     # convex_test()
-    multiprocess_test()
+    # multiprocess_test()
+    ternary_test()
 
 
 if __name__ == '__main__':
