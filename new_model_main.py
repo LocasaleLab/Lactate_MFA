@@ -517,7 +517,7 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, paralle
         ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
-        point_interval_list = [7, 7, 3, 3, 15]
+        point_interval_list = [10, 10, 4, 4, 20]
         ternary_resolution = int(2 ** 8)
 
     free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
