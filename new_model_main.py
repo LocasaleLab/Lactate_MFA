@@ -10,8 +10,11 @@ import numpy as np
 from scipy.misc import comb as scipy_comb
 import matplotlib.pyplot as plt
 import scipy.optimize
+import scipy.interpolate
+import scipy.signal
 import tqdm
 import ternary
+from ternary.helpers import simplex_iterator
 
 import data_parser as data_parser
 import main as main_functions
@@ -70,9 +73,18 @@ def split_equal_dist(source_mid, target_carbon_num):
     carbon_num = len(source_mid) - 1
     if carbon_num % 2 != 0:
         raise ValueError("Length is not multiply of 2 !!!")
-    _c13_ratio = np.power(source_mid[0], (1 / carbon_num))
+    new_carbon_num = target_carbon_num
+    final_output_vector = np.zeros(new_carbon_num + 1)
+    final_output_vector[0] = source_mid[0]
+    final_output_vector[-1] = source_mid[-1]
+    average_ratio = (1 - final_output_vector[0] - final_output_vector[-1]) / (new_carbon_num - 1)
+    for i in range(1, new_carbon_num):
+        final_output_vector[i] = average_ratio
 
-    final_output_vector = natural_dist(_c13_ratio, target_carbon_num)
+    # _c12_ratio = np.power(source_mid[0], (1 / carbon_num))
+    # _c13_ratio = 1 - _c12_ratio
+    #
+    # final_output_vector = natural_dist(_c13_ratio, target_carbon_num)
     return final_output_vector
 
 
@@ -259,6 +271,7 @@ def sample_and_one_case_solver_slsqp(
         result_dict = {}
         obj_value = 999999
         success = False
+        # print("Find 1 feasible solution")
         for _ in range(optimization_repeat_time):
             start_vector = start_point_generator(
                 complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
@@ -355,14 +368,14 @@ def result_evaluation(result_dict, constant_dict, mid_constraint_list):
             mid_constraint_dict, calculate_vector, target_vector))
 
 
-def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct):
+def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct, **other_parameters):
     output_direct = "{}/model1".format(total_output_direct)
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glu', 'Fcirc_lac']
+                         ['Fcirc_glc', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glu': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
 
     f1_range = [1, 150]
     g2_range = [1, 150]
@@ -382,7 +395,7 @@ def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct):
     min_flux_value = 1
     max_flux_value = 5000
     optimization_repeat_time = 8
-    obj_tolerance = 0.11
+    obj_tolerance = 0.1
 
     balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = flux_balance_constraint_constructor(
@@ -413,7 +426,7 @@ def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct):
     return const_parameter_dict, iter_parameter_list
 
 
-def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct):
+def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct, **other_parameters):
     output_direct = "{}/model2".format(total_output_direct)
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
@@ -421,13 +434,13 @@ def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct):
                          ['Fin', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
     constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500}
-    #
+
     # f1_range = [1, 250]
     # g2_range = [1, 250]
     min_flux_value = 1
     max_flux_value = 8000
     optimization_repeat_time = 8
-    obj_tolerance = 0.26
+    obj_tolerance = 0.25
     f1_range = [min_flux_value, max_flux_value]
     g2_range = [min_flux_value, max_flux_value]
 
@@ -474,7 +487,15 @@ def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct):
     return const_parameter_dict, iter_parameter_list
 
 
-def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct):
+def parameter_generator_model3(free_flux_value, free_fluxes_list, constant_flux_dict):
+    new_constant_flux_dict = dict(constant_flux_dict)
+    new_constant_flux_dict.update(
+        {flux_name: value for flux_name, value in zip(free_fluxes_list, free_flux_value)})
+    var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
+    return var_parameter_dict
+
+
+def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
     output_direct = "{}/model3".format(total_output_direct)
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
@@ -484,20 +505,41 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct):
     constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 100}
 
     min_flux_value = 1
-    max_flux_value = 8000
+    max_flux_value = 5000
     optimization_repeat_time = 8
-    obj_tolerance = 0.26
+    obj_tolerance = 0.5
+    ternary_sigma = 0.15
+    sample = False
 
     if platform.node() == 'BaranLiu-PC':
         total_point_num = int(1e3)
+        point_interval_list = [30, 30, 12, 12, 80]
+        ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
+        point_interval_list = [7, 7, 3, 3, 15]
+        ternary_resolution = int(2 ** 8)
 
-    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'H1']
-    shuffled_points_list = [np.linspace(min_flux_value, max_flux_value, total_point_num) for _ in range(5)]
-    for row_index in range(5):
-        np.random.shuffle(shuffled_points_list[row_index])
-    shuffled_points = np.array(shuffled_points_list).T
+    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    if sample:
+        free_flux_value_list = [np.linspace(min_flux_value, max_flux_value, total_point_num) for _ in range(5)]
+        for row_index in range(5):
+            np.random.shuffle(free_flux_value_list[row_index])
+        # shuffled_points = np.array(shuffled_points_list).T
+        list_length = len(free_flux_value_list)
+    else:
+        free_fluxes_range_list = [
+            [min_flux_value, constant_flux_dict['Fcirc_glc']],
+            [min_flux_value, constant_flux_dict['Fcirc_glc']],
+            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+            [min_flux_value, constant_flux_dict['Fcirc_lac']],
+        ]
+        free_fluxes_sequence_list = [
+            np.arange(*flux_range, point_interval) for flux_range, point_interval
+            in zip(free_fluxes_range_list, point_interval_list)]
+        free_flux_value_list = it.product(*free_fluxes_sequence_list)
+        list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
 
     balance_list, mid_constraint_list = model3_construction(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = flux_balance_constraint_constructor(
@@ -505,13 +547,24 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct):
     substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value = mid_constraint_constructor(
         mid_constraint_list, complete_flux_dict)
 
-    iter_parameter_list = []
-    for one_point_row in shuffled_points:
-        new_constant_flux_dict = dict(constant_flux_dict)
-        new_constant_flux_dict.update(
-            {flux_name: value for flux_name, value in zip(free_fluxes_list, one_point_row)})
-        var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
-        iter_parameter_list.append(var_parameter_dict)
+    # iter_parameter_list = []
+    chunk_size = 1000
+    # for free_flux_value in free_flux_value_list:
+    #     new_constant_flux_dict = dict(constant_flux_dict)
+    #     new_constant_flux_dict.update(
+    #         {flux_name: value for flux_name, value in zip(free_fluxes_list, free_flux_value)})
+    #     var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
+    #     iter_parameter_list.append(var_parameter_dict)
+    with mp.Pool(processes=parallel_num) as pool:
+        raw_result_iter = pool.imap(
+            partial(
+                parameter_generator_model3, constant_flux_dict=constant_flux_dict,
+                free_fluxes_list=free_fluxes_list),
+            free_flux_value_list, chunk_size)
+        iter_parameter_list = list(tqdm.tqdm(
+            raw_result_iter, total=list_length, smoothing=0, maxinterval=5,
+            desc="Parameter generation progress"))
+
     const_parameter_dict = {
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
@@ -521,7 +574,9 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct):
 
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
-        'free_fluxes_list': free_fluxes_list
+        'free_fluxes_list': free_fluxes_list,
+
+        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
     return const_parameter_dict, iter_parameter_list
 
@@ -556,7 +611,9 @@ def mid_data_loader(
         'pyr_to_glc_sink': collect_all_data(
             data_collection_dict, 'pyruvate', label_list, sink_tissue_marker, mouse_id_list, convolve=True),
         'glc_to_pyr_sink': collect_all_data(
-            data_collection_dict, 'glucose', label_list, sink_tissue_marker, mouse_id_list, split=3)
+            data_collection_dict, 'glucose', label_list, sink_tissue_marker, mouse_id_list, split=3),
+        'glc_to_pyr_plasma': collect_all_data(
+            data_collection_dict, 'glucose', label_list, plasma_marker, mouse_id_list, split=3),
     }
 
     for name, mid_vector in mid_data_dict.items():
@@ -575,7 +632,7 @@ def model1_construction(mid_data_dict):
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
     pyr_sink_balance_eq = {'input': ['G5', 'G7'], 'output': ['G6', 'G8', 'G9']}
     lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
-    glc_circ_balance_eq = {'input': ['F2', 'G2'], 'output': ['Fcirc_glu']}
+    glc_circ_balance_eq = {'input': ['F2', 'G2'], 'output': ['Fcirc_glc']}
     lac_circ_balance_eq = {'input': ['F4', 'G4'], 'output': ['Fcirc_lac']}
 
     # MID equations:
@@ -668,7 +725,7 @@ def model3_construction(mid_data_dict):
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
     pyr_sink_balance_eq = {'input': ['G5', 'G7', 'G9'], 'output': ['G6', 'G8', 'G10', 'G11']}
     lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
-    glc_circ_balance_eq = {'input': ['F1', 'G1'], 'output': ['Fcirc_glu']}
+    glc_circ_balance_eq = {'input': ['F1', 'G1'], 'output': ['Fcirc_glc']}
     lac_circ_balance_eq = {'input': ['F3', 'G3'], 'output': ['Fcirc_lac']}
     pyr_circ_balance_eq = {'input': ['F9', 'G9'], 'output': ['Fcirc_pyr']}
 
@@ -688,7 +745,7 @@ def model3_construction(mid_data_dict):
         'H2': mid_data_dict['pyr_plasma'], target_label: mid_data_dict['lac_plasma']}
     pyr_plasma_mid_eq = {
         'G10': mid_data_dict['pyr_sink'], 'F10': mid_data_dict['pyr_source'],
-        'H1': mid_data_dict['glc_plasma'], 'H3': mid_data_dict['lac_plasma'],
+        'H1': mid_data_dict['glc_to_pyr_plasma'], 'H3': mid_data_dict['lac_plasma'],
         target_label: mid_data_dict['pyr_plasma']}
     glc_sink_mid_eq = {
         'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
@@ -781,11 +838,81 @@ def plot_ternary_scatter(data_matrix):
     tax.gridlines(multiple=0.1, color="blue")
     # Plot a few different styles with a legend
     # points = [data_matrix]
+    # tax.heatmap()
     tax.scatter(data_matrix, marker='s', color='red', label="Red Squares")
     tax.legend()
     tax.ticks(axis='lbr', linewidth=1, multiple=0.1)
 
     # ternary.plt.show()
+
+
+# Each row of data matrix is a point in triple tuple
+# In cartesian cor, the left bottom corner of triangle is the origin.
+# The scale of all triangle points is 1.
+# Order of ternary cor: x1: bottom (to right) x2: right (to left) x3: left (to bottom)
+def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8, save_path=None):
+    sqrt_3 = np.sqrt(3)
+
+    def standard_2dnormal(x, y, _sigma):
+        return np.exp(-0.5 / _sigma ** 2 * (x ** 2 + y ** 2)) / (2 * np.pi * _sigma ** 2)
+
+    # Each row is the cartesian cor.
+    def tri_to_car(input_data_matrix):
+        y_value = input_data_matrix[:, 1] * sqrt_3 / 2
+        x_value = input_data_matrix[:, 0] + y_value / sqrt_3
+        return np.vstack([x_value, y_value]).T
+
+    def car_to_tri(input_data_matrix):
+        y_value = input_data_matrix[:, 1]
+        x2_value = y_value / (sqrt_3 / 2)
+        x1_value = input_data_matrix[:, 0] - y_value / sqrt_3
+        return np.vstack([x1_value, x2_value]).T
+
+    def gaussian_kernel_generator(_bin_num, _sigma):
+        x = np.linspace(0, 1, _bin_num) - 0.5
+        y = np.linspace(0, 1, _bin_num) - 0.5
+        X, Y = np.meshgrid(x, y)
+        gaussian_kernel = standard_2dnormal(X, Y, _sigma)
+        return np.rot90(gaussian_kernel)
+
+    def bin_car_data_points(_car_data_matrix, _bin_num):
+        histogram, _, _ = np.histogram2d(
+            _car_data_matrix[:, 0], _car_data_matrix[:, 1], bins=np.linspace(0, 1, _bin_num + 1))
+        return histogram
+
+    def complete_tri_set_interpolation(_location_list, _value_list, _scale):
+        result_tri_array = np.array(list(simplex_iterator(_scale))) / _scale
+        result_car_array = tri_to_car(result_tri_array)
+        result_value_array = scipy.interpolate.griddata(
+            np.array(location_list), np.array(value_list), result_car_array, method='cubic')
+        target_dict = {}
+        for (i, j, k), result_value in zip(simplex_iterator(bin_num), result_value_array):
+            target_dict[(i, j)] = result_value
+        return target_dict
+
+    car_data_matrix = tri_to_car(tri_data_matrix)
+    data_bin_matrix = bin_car_data_points(car_data_matrix, bin_num)
+    gaussian_kernel_matrix = gaussian_kernel_generator(bin_num, sigma)
+    car_blurred_matrix = scipy.signal.convolve2d(data_bin_matrix, gaussian_kernel_matrix, mode='same')
+    x_axis = y_axis = np.linspace(0, 1, bin_num)
+    location_list = []
+    value_list = []
+    for x_index, x_value in enumerate(x_axis):
+        for y_index, y_value in enumerate(y_axis):
+            location_list.append([x_value, y_value])
+            value_list.append(car_blurred_matrix[x_index, y_index])
+    complete_density_dict = complete_tri_set_interpolation(location_list, value_list, bin_num)
+    fig, tax = ternary.figure(scale=bin_num)
+    tax.heatmap(complete_density_dict, cmap='Blues', style="h")
+    tax.boundary(linewidth=1.0)
+    tick_labels = list(np.linspace(0, bin_num, 11) / bin_num)
+    tax.ticks(axis='lbr', ticks=tick_labels, linewidth=1, tick_formats="")
+    tax.clear_matplotlib_ticks()
+    plt.tight_layout()
+    if save_path:
+        print(save_path)
+        fig.savefig(save_path, dpi=fig.dpi)
+    # tax.show()
 
 
 def final_result_processing_and_plotting_model12(
@@ -870,6 +997,9 @@ def final_result_processing_and_plotting_model34(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     output_direct = const_parameter_dict['output_direct']
     free_fluxes_list = const_parameter_dict['free_fluxes_list']
+    ternary_sigma = const_parameter_dict['ternary_sigma']
+    ternary_resolution = const_parameter_dict['ternary_resolution']
+
     valid_point_list = []
     invalid_point_list = []
     contribution_array_list = []
@@ -897,7 +1027,10 @@ def final_result_processing_and_plotting_model34(
     with open("{}/output_data_dict".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    plot_ternary_scatter(contribution_matrix)
+    # plot_ternary_scatter(contribution_matrix)
+    plot_ternary_density(
+        contribution_matrix, ternary_sigma, ternary_resolution,
+        save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
 
     if platform.node() == 'BaranLiu-PC':
         plt.show()
@@ -916,8 +1049,6 @@ def model_solver_slsqp_parallel_pool(
         parameter_construction_kwargs, hook_in_each_iteration, hook_after_all_iterations):
     raw_data_collection_dict = data_collection_obj.mid_data
     model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
-    const_parameter_dict, var_parameter_list = parameter_construction_func(
-        model_mid_data_dict, **parameter_construction_kwargs)
 
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
@@ -929,15 +1060,18 @@ def model_solver_slsqp_parallel_pool(
     else:
         chunk_size = 100
         parallel_num = 12
-    pool = mp.Pool(processes=parallel_num)
-    with pool:
+
+    const_parameter_dict, var_parameter_list = parameter_construction_func(
+        model_mid_data_dict, parallel_num=parallel_num, **parameter_construction_kwargs)
+
+    with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
             partial(
                 model_solver_single, const_parameter_dict=const_parameter_dict,
                 hook_in_each_iteration=hook_in_each_iteration),
             var_parameter_list, chunk_size)
         raw_result_list = list(tqdm.tqdm(
-            raw_result_iter, total=len(var_parameter_list), smoothing=0, maxinterval=5))
+            raw_result_iter, total=len(var_parameter_list), smoothing=0, maxinterval=5, desc="Computation progress"))
 
     result_iter, hook_result_iter = zip(*raw_result_list)
     result_list = list(result_iter)
@@ -1021,7 +1155,7 @@ def model3_dynamic_range_glucose_contribution():
 
     parameter_construction_func = dynamic_range_model3
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
-    hook_in_each_iteration = result_processing_each_iteration_model12
+    hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_result_processing_and_plotting_model34
     # solver_func = model_solver_slsqp_parallel
     solver_func = model_solver_slsqp_parallel_pool
@@ -1041,8 +1175,9 @@ def main():
     # file_path = "data_collection_from_Dan.xlsx"
     # experiment_name_prefix = "no_tumor"
     # label_list = ["glucose"]
-    model1_dynamic_range_glucose_contribution()
+    # model1_dynamic_range_glucose_contribution()
     # model2_dynamic_range_glucose_contribution()
+    model3_dynamic_range_glucose_contribution()
 
 
 if __name__ == '__main__':

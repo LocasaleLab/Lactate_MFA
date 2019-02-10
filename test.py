@@ -2,6 +2,7 @@ import multiprocessing as mp
 
 import emoji
 import numpy as np
+import scipy.signal
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
@@ -389,13 +390,141 @@ def multiprocess_test():
 count_q = mp.Queue()
 
 from new_model_main import plot_ternary_scatter
+import scipy.interpolate
+import ternary
+
+
+def ternary_function_test():
+    data_matrix = np.random.random([100, 3])
+    norm_data_matrix = data_matrix / np.sum(data_matrix, 1).reshape([-1, 1])
+    plot_ternary_scatter(norm_data_matrix)
+    plt.show()
 
 
 def ternary_test():
-    data_matrix = np.random.random([100, 3])
-    norm_data_matrix = data_matrix / np.sum(data_matrix, 1).reshape([-1, 1]) * 40
-    plot_ternary_scatter(norm_data_matrix)
-    plt.show()
+    # scale = 1
+    # figure, tax = ternary.figure(scale=scale)
+
+    # Draw Boundary and Gridlines
+    # tax.boundary(linewidth=2.0)
+    # tax.gridlines(color="blue", multiple=0.1)
+
+    # Set Axis labels and Title
+    # fontsize = 20
+    # tax.set_title("Various Lines", fontsize=20)
+    # tax.left_axis_label("Left label $\\alpha^2$", fontsize=fontsize)
+    # tax.right_axis_label("Right label $\\beta^2$", fontsize=fontsize)
+    # tax.bottom_axis_label("Bottom label $\\Gamma - \\Omega$", fontsize=fontsize)
+
+    # Draw lines parallel to the axes
+    # tax.horizontal_line(16)
+    # tax.left_parallel_line(10, linewidth=2., color='red', linestyle="--")
+    # tax.right_parallel_line(20, linewidth=3., color='blue')
+    # Draw an arbitrary line, ternary will project the points for you
+    # p1 = (12, 8, 10)
+    # p2 = (2, 26, 2)
+    # tax.line(p1, p2, linewidth=3., marker='s', color='green', linestyle=":")
+    # tax.scatter([(0.13, 0.33, 0.54)])
+
+    # tax.ticks(axis='lbr', multiple=0.1, linewidth=1, tick_formats="%.1f")
+
+    # tax.show()
+
+    tri_data_matrix = np.array([[0.8, 0.1, 0.1]])
+    save_path = "new_models/model3/ternary_figure.png"
+    count_density_dist(tri_data_matrix, save_path=save_path, sigma=0.1, bin_num=2 ** 7)
+
+    # import random
+    #
+    # def generate_random_heatmap_data(scale=5):
+    #     from ternary.helpers import simplex_iterator
+    #     d = dict()
+    #     for (i, j, k) in simplex_iterator(scale):
+    #         d[(i, j)] = random.random()
+    #     return d
+    #
+    # scale = 20
+    # d = generate_random_heatmap_data(scale)
+    # figure, tax = ternary.figure(scale=scale)
+    # tax.heatmap(d, style="h")
+    # tax.boundary()
+    # tax.set_title("Heatmap Test: Hexagonal")
+    # tax.show()
+
+
+from ternary.helpers import simplex_iterator
+
+
+# Each row of data matrix is a point in triple tuple
+# In cartesian cor, the left bottom corner of triangle is the origin.
+# The scale of all triangle points is 1.
+# Order of ternary cor: x1: bottom (to right) x2: right (to left) x3: left (to bottom)
+def count_density_dist(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8, save_path=None):
+    sqrt_3 = np.sqrt(3)
+
+    def standard_2dnormal(x, y, _sigma):
+        return np.exp(-0.5 / _sigma ** 2 * (x ** 2 + y ** 2)) / (2 * np.pi * _sigma ** 2)
+
+    # Each row is the cartesian cor.
+    def tri_to_car(input_data_matrix):
+        y_value = input_data_matrix[:, 1] * sqrt_3 / 2
+        x_value = input_data_matrix[:, 0] + y_value / sqrt_3
+        return np.vstack([x_value, y_value]).T
+
+    def car_to_tri(input_data_matrix):
+        y_value = input_data_matrix[:, 1]
+        x2_value = y_value / (sqrt_3 / 2)
+        x1_value = input_data_matrix[:, 0] - y_value / sqrt_3
+        # x3_value = 1 - x1_value - x2_value
+        # x3_value[x3_value < 0] = 0
+        return np.vstack([x1_value, x2_value]).T
+
+    def gaussian_kernel_generator(_bin_num, _sigma):
+        x = np.linspace(0, 1, _bin_num) - 0.5
+        y = np.linspace(0, 1, _bin_num) - 0.5
+        X, Y = np.meshgrid(x, y)
+        gaussian_kernel = standard_2dnormal(X, Y, _sigma)
+        return np.rot90(gaussian_kernel)
+
+    def bin_car_data_points(_car_data_matrix, _bin_num):
+        histogram, _, _ = np.histogram2d(
+            _car_data_matrix[:, 0], _car_data_matrix[:, 1], bins=np.linspace(0, 1, _bin_num + 1))
+        return histogram
+
+    def complete_tri_set_interpolation(_location_list, _value_list, _scale):
+        result_tri_array = np.array(list(simplex_iterator(_scale))) / _scale
+        result_car_array = tri_to_car(result_tri_array)
+        result_value_array = scipy.interpolate.griddata(
+            np.array(location_list), np.array(value_list), result_car_array, method='cubic')
+        target_dict = {}
+        for (i, j, k), result_value in zip(simplex_iterator(bin_num), result_value_array):
+            target_dict[(i, j)] = result_value
+        return target_dict
+
+    car_data_matrix = tri_to_car(tri_data_matrix)
+    data_bin_matrix = bin_car_data_points(car_data_matrix, bin_num)
+    gaussian_kernel_matrix = gaussian_kernel_generator(bin_num, sigma)
+    car_blurred_matrix = scipy.signal.convolve2d(data_bin_matrix, gaussian_kernel_matrix, mode='same')
+    x_axis = y_axis = np.linspace(0, 1, bin_num)
+    location_list = []
+    value_list = []
+    for x_index, x_value in enumerate(x_axis):
+        for y_index, y_value in enumerate(y_axis):
+            location_list.append([x_value, y_value])
+            value_list.append(car_blurred_matrix[x_index, y_index])
+    complete_density_dict = complete_tri_set_interpolation(location_list, value_list, bin_num)
+    fig, tax = ternary.figure(scale=bin_num)
+    tax.heatmap(complete_density_dict, cmap='Blues', style="h")
+    tax.boundary(linewidth=1.0)
+    tick_labels = list(np.linspace(0, bin_num, 11) / bin_num)
+    tax.ticks(axis='lbr', ticks=tick_labels, linewidth=1, tick_formats="")
+
+    tax.clear_matplotlib_ticks()
+    plt.tight_layout()
+    if save_path:
+        print(save_path)
+        fig.savefig(save_path, dpi=fig.dpi)
+    tax.show()
 
 
 def main():
@@ -408,6 +537,7 @@ def main():
     # cvxopt_test()
     # convex_test()
     # multiprocess_test()
+    # ternary_function_test()
     ternary_test()
 
 
