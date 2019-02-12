@@ -31,6 +31,7 @@ spleen_marker = 'Sp'
 liver_marker = 'Lv'
 target_label = 'target'
 c13_ratio = 0.01109
+eps_for_log = 1e-10
 
 
 class FreeVariable(object):
@@ -165,8 +166,7 @@ def mid_constraint_constructor(mid_constraint_list, complete_flux_dict):
         flux_sum_matrix_list.extend(new_flux_sum_matrix_list)
     substrate_mid_matrix = np.array(substrate_mid_matrix_list)
     flux_sum_matrix = np.array(flux_sum_matrix_list)
-    eps = 1e-10
-    target_mid_vector = np.hstack(target_mid_vector_list) + eps
+    target_mid_vector = np.hstack(target_mid_vector_list) + eps_for_log
     optimal_obj_value = -np.sum(target_mid_vector * np.log(target_mid_vector))
     return substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value
 
@@ -189,7 +189,8 @@ def cross_entropy_obj_func_constructor(substrate_mid_matrix, flux_sum_matrix, ta
     def cross_entropy_objective_func(complete_vector):
         # complete_vector = np.hstack([f_vector, constant_flux_array]).reshape([-1, 1])
         complete_vector = complete_vector.reshape([-1, 1])
-        predicted_mid_vector = substrate_mid_matrix @ complete_vector / (flux_sum_matrix @ complete_vector)
+        predicted_mid_vector = (
+                substrate_mid_matrix @ complete_vector / (flux_sum_matrix @ complete_vector) + eps_for_log)
         cross_entropy = -target_mid_vector.reshape([1, -1]) @ np.log(predicted_mid_vector)
         return cross_entropy
 
@@ -440,7 +441,7 @@ def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct, **other
     min_flux_value = 1
     max_flux_value = 8000
     optimization_repeat_time = 8
-    obj_tolerance = 0.25
+    obj_tolerance = 0.3
     f1_range = [min_flux_value, max_flux_value]
     g2_range = [min_flux_value, max_flux_value]
 
@@ -487,7 +488,7 @@ def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct, **other
     return const_parameter_dict, iter_parameter_list
 
 
-def parameter_generator_model3(free_flux_value, free_fluxes_list, constant_flux_dict):
+def parameter_generator_single(free_flux_value, free_fluxes_list, constant_flux_dict):
     new_constant_flux_dict = dict(constant_flux_dict)
     new_constant_flux_dict.update(
         {flux_name: value for flux_name, value in zip(free_fluxes_list, free_flux_value)})
@@ -558,7 +559,88 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, paralle
     with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
             partial(
-                parameter_generator_model3, constant_flux_dict=constant_flux_dict,
+                parameter_generator_single, constant_flux_dict=constant_flux_dict,
+                free_fluxes_list=free_fluxes_list),
+            free_flux_value_list, chunk_size)
+        iter_parameter_list = list(tqdm.tqdm(
+            raw_result_iter, total=list_length, smoothing=0, maxinterval=5,
+            desc="Parameter generation progress"))
+
+    const_parameter_dict = {
+        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
+        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
+        'free_fluxes_list': free_fluxes_list,
+
+        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
+    }
+    return const_parameter_dict, iter_parameter_list
+
+
+def dynamic_range_model4(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
+    output_direct = "{}/model4".format(total_output_direct)
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(11)] + ['G{}'.format(i + 1) for i in range(11)] + \
+                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
+    fcirc_glc_max = 500
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 8
+    obj_tolerance = 99999
+    ternary_sigma = 0.15
+    sample = False
+
+    if platform.node() == 'BaranLiu-PC':
+        total_point_num = int(1e3)
+        point_interval_list = [100, 100, 20, 20, 100]
+        ternary_resolution = int(2 ** 7)
+    else:
+        total_point_num = int(3e6)
+        point_interval_list = [20, 20, 4, 4, 20]
+        ternary_resolution = int(2 ** 8)
+
+    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    if sample:
+        free_flux_value_list = [np.linspace(min_flux_value, max_flux_value, total_point_num) for _ in range(5)]
+        for row_index in range(5):
+            np.random.shuffle(free_flux_value_list[row_index])
+        # shuffled_points = np.array(shuffled_points_list).T
+        list_length = len(free_flux_value_list)
+    else:
+        free_fluxes_range_list = [
+            [min_flux_value, fcirc_glc_max],
+            [min_flux_value, fcirc_glc_max],
+            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+            [min_flux_value, constant_flux_dict['Fcirc_lac']],
+        ]
+        free_fluxes_sequence_list = [
+            np.arange(*flux_range, point_interval) for flux_range, point_interval
+            in zip(free_fluxes_range_list, point_interval_list)]
+        free_flux_value_list = it.product(*free_fluxes_sequence_list)
+        list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
+
+    balance_list, mid_constraint_list = model4_construction(model_mid_data_dict)
+    flux_balance_matrix, flux_balance_constant_vector = flux_balance_constraint_constructor(
+        balance_list, complete_flux_dict)
+    substrate_mid_matrix, flux_sum_matrix, target_mid_vector, optimal_obj_value = mid_constraint_constructor(
+        mid_constraint_list, complete_flux_dict)
+
+    # iter_parameter_list = []
+    chunk_size = 1000
+    with mp.Pool(processes=parallel_num) as pool:
+        raw_result_iter = pool.imap(
+            partial(
+                parameter_generator_single, constant_flux_dict=constant_flux_dict,
                 free_fluxes_list=free_fluxes_list),
             free_flux_value_list, chunk_size)
         iter_parameter_list = list(tqdm.tqdm(
@@ -616,9 +698,12 @@ def mid_data_loader(
             data_collection_dict, 'glucose', label_list, plasma_marker, mouse_id_list, split=3),
     }
 
+    eps_of_mid = 1e-5
     for name, mid_vector in mid_data_dict.items():
         if abs(np.sum(mid_vector) - 1) > 0.001:
             raise ValueError('Sum of MID is not 1: {}'.format(name))
+        mid_data_dict[name] += eps_of_mid
+        mid_data_dict[name] /= np.sum(mid_data_dict[name])
     return mid_data_dict
 
 
@@ -768,35 +853,85 @@ def model3_construction(mid_data_dict):
     return balance_list, mid_constraint_list
 
 
-def result_processing_each_iteration_model12(result: Result, obj_tolerance, **other_parameter_dict):
+def model4_construction(mid_data_dict):
+    # Balance equations:
+    glc_source_balance_eq = {'input': ['F1', 'F6'], 'output': ['F2', 'F5']}
+    pyr_source_balance_eq = {'input': ['F5', 'F7', 'F9'], 'output': ['F6', 'F8', 'F10', 'F11']}
+    lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1', 'H1']}
+    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['F9', 'G9', 'H2']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'H2'], 'output': ['F3', 'G3', 'H3']}
+    glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
+    pyr_sink_balance_eq = {'input': ['G5', 'G7', 'G9'], 'output': ['G6', 'G8', 'G10', 'G11']}
+    lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
+    lac_circ_balance_eq = {'input': ['F3', 'G3'], 'output': ['Fcirc_lac']}
+    pyr_circ_balance_eq = {'input': ['F9', 'G9'], 'output': ['Fcirc_pyr']}
+
+    # MID equations:
+    glc_source_mid_eq = {
+        'F1': mid_data_dict['glc_plasma'], 'F6': mid_data_dict['pyr_to_glc_source'],
+        target_label: mid_data_dict['glc_source']}
+    pyr_source_mid_eq = {
+        'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
+        target_label: mid_data_dict['pyr_source']}
+    lac_source_mid_eq = {
+        'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
+        target_label: mid_data_dict['lac_source']}
+    glc_plasma_mid_eq = {
+        'G2': mid_data_dict['glc_sink'], 'F2': mid_data_dict['glc_source'],
+        'Fin': mid_data_dict['glc_infused'], target_label: mid_data_dict['glc_plasma']}
+    lac_plasma_mid_eq = {
+        'G4': mid_data_dict['lac_sink'], 'F4': mid_data_dict['lac_source'],
+        'H2': mid_data_dict['pyr_plasma'], target_label: mid_data_dict['lac_plasma']}
+    pyr_plasma_mid_eq = {
+        'G10': mid_data_dict['pyr_sink'], 'F10': mid_data_dict['pyr_source'],
+        'H1': mid_data_dict['glc_to_pyr_plasma'], 'H3': mid_data_dict['lac_plasma'],
+        target_label: mid_data_dict['pyr_plasma']}
+    glc_sink_mid_eq = {
+        'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
+        target_label: mid_data_dict['glc_sink']}
+    pyr_sink_mid_eq = {
+        'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
+        target_label: mid_data_dict['pyr_sink']}
+    lac_sink_mid_eq = {
+        'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
+        target_label: mid_data_dict['lac_sink']}
+
+    balance_list = [
+        glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
+        pyr_plasma_balance_eq, lac_plasma_balance_eq, glc_sink_balance_eq, pyr_sink_balance_eq,
+        lac_sink_balance_eq, lac_circ_balance_eq, pyr_circ_balance_eq]
+    mid_constraint_list = [
+        glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, glc_plasma_mid_eq, lac_plasma_mid_eq,
+        pyr_plasma_mid_eq, glc_sink_mid_eq, pyr_sink_mid_eq, lac_sink_mid_eq]
+
+    return balance_list, mid_constraint_list
+
+
+def result_processing_each_iteration_model12(result: Result, **other_parameter_dict):
     processed_dict = {}
-    minimal_obj_value = result.minimal_obj_value
-    current_obj_value = result.obj_value
-    result_dict = result.result_dict
-    if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
-        processed_dict['obj_value'] = current_obj_value
+    # if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
+    if result.success:
+        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
         processed_dict['valid'] = True
-        glucose_contribution = solve_glucose_contribution_model12(result_dict)
+        glucose_contribution = solve_glucose_contribution_model12(result.result_dict)
         processed_dict['glucose_contribution'] = glucose_contribution
     else:
-        processed_dict['obj_value'] = -1
+        processed_dict['obj_diff'] = np.nan
         processed_dict['valid'] = False
         processed_dict['glucose_contribution'] = -1
     return processed_dict
 
 
-def result_processing_each_iteration_model34(result: Result, obj_tolerance, **other_parameter_dict):
+def result_processing_each_iteration_model34(result: Result, **other_parameter_dict):
     processed_dict = {}
-    minimal_obj_value = result.minimal_obj_value
-    current_obj_value = result.obj_value
-    result_dict = result.result_dict
-    if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
-        processed_dict['obj_value'] = current_obj_value
+    if result.success:
+        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
         processed_dict['valid'] = True
-        contribution_list = solve_glucose_contribution_model34(result_dict)
+        contribution_list = solve_glucose_contribution_model34(result.result_dict)
         processed_dict['contribution_array'] = np.array(contribution_list)
     else:
-        processed_dict['obj_value'] = current_obj_value
+        processed_dict['obj_diff'] = np.nan
         processed_dict['valid'] = False
         processed_dict['contribution_array'] = np.array([])
     return processed_dict
@@ -921,64 +1056,45 @@ def final_result_processing_and_plotting_model12(
     g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
     matrix_loc_list = const_parameter_dict['matrix_loc_list']
     output_direct = const_parameter_dict['output_direct']
+    obj_tolerance = const_parameter_dict['obj_tolerance']
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     glucose_contri_matrix = np.zeros_like(valid_matrix)
     objective_function_matrix = np.zeros_like(valid_matrix)
+    well_fit_glucose_contri_list = []
 
     for solver_result, processed_dict, matrix_loc in zip(result_list, processed_result_list, matrix_loc_list):
         if processed_dict['valid']:
             valid_matrix[matrix_loc] = 1
             glucose_contri_matrix[matrix_loc] = processed_dict['glucose_contribution']
-            objective_function_matrix[matrix_loc] = processed_dict['obj_value']
+            objective_function_matrix[matrix_loc] = processed_dict['obj_diff']
+            if processed_dict['obj_diff'] < obj_tolerance:
+                well_fit_glucose_contri_list.append(processed_dict['glucose_contribution'])
         else:
             valid_matrix[matrix_loc] = 0
             glucose_contri_matrix[matrix_loc] = np.nan
             objective_function_matrix[matrix_loc] = np.nan
 
-    # fig, ax = plt.subplots()
-    # im = ax.imshow(valid_matrix)
-    # ax.set_xlim([0, g2_free_flux.total_num])
-    # ax.set_ylim([0, f1_free_flux.total_num])
-    # ax.set_xticks(g2_free_flux.tick_in_range)
-    # ax.set_yticks(f1_free_flux.tick_in_range)
-    # ax.set_xticklabels(g2_free_flux.tick_labels)
-    # ax.set_yticklabels(f1_free_flux.tick_labels)
-    # fig.savefig("{}/dynamic_range.png".format(output_direct), dpi=fig.dpi)
-    plot_heat_map(valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
+    filtered_obj_function_matrix = objective_function_matrix.copy()
+    filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
 
-    # fig, ax = plt.subplots()
-    # im = ax.imshow(glucose_contri_matrix, cmap='cool')
-    # ax.set_xlim([0, g2_free_flux.total_num])
-    # ax.set_ylim([0, f1_free_flux.total_num])
-    # ax.set_xticks(g2_free_flux.tick_in_range)
-    # ax.set_yticks(f1_free_flux.tick_in_range)
-    # ax.set_xticklabels(g2_free_flux.tick_labels)
-    # ax.set_yticklabels(f1_free_flux.tick_labels)
-    # cbar = ax.figure.colorbar(im, ax=ax)
-    # cbar.ax.set_ylabel('Glucose Contribution', rotation=-90, va="bottom")
-    # fig.savefig("{}/glucose_contribution_heatmap.png".format(output_direct), dpi=fig.dpi)
+    plot_heat_map(valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
     plot_heat_map(
         glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap='cool', cbar_name='Glucose Contribution',
         save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
-
-    # fig, ax = plt.subplots()
-    # im = ax.imshow(objective_function_matrix, cmap='cool')
-    # ax.set_xlim([0, g2_free_flux.total_num])
-    # ax.set_ylim([0, f1_free_flux.total_num])
-    # ax.set_xticks(g2_free_flux.tick_in_range)
-    # ax.set_yticks(f1_free_flux.tick_in_range)
-    # ax.set_xticklabels(g2_free_flux.tick_labels)
-    # ax.set_yticklabels(f1_free_flux.tick_labels)
-    # cbar = ax.figure.colorbar(im, ax=ax)
-    # cbar.ax.set_ylabel('Objective function', rotation=-90, va="bottom")
-    # fig.savefig("{}/objective_function.png".format(output_direct), dpi=fig.dpi)
     plot_heat_map(
-        objective_function_matrix, g2_free_flux, f1_free_flux, cmap='cool', cbar_name='Objective function',
+        objective_function_matrix, g2_free_flux, f1_free_flux, cmap='cool', cbar_name='Objective difference',
         save_path="{}/objective_function.png".format(output_direct))
+    plot_heat_map(
+        filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap='cool',
+        cbar_name='Filtered objective difference',
+        save_path="{}/filtered_objective_function.png".format(output_direct))
 
-    glucose_contri_vector = glucose_contri_matrix.reshape([-1])
-    glucose_contri_vector = glucose_contri_vector[~np.isnan(glucose_contri_vector)]
+    if len(well_fit_glucose_contri_list) == 0:
+        raise ValueError('No point fit the constraint for contribution of carbon sources!')
+    # glucose_contri_vector = glucose_contri_matrix.reshape([-1])
+    # glucose_contri_vector = glucose_contri_vector[~np.isnan(glucose_contri_vector)]
+    glucose_contri_vector = np.array(well_fit_glucose_contri_list)
     fig, ax = main_functions.violin_plot({"normal": glucose_contri_vector})
     fig.savefig("{}/glucose_contribution_violin.png".format(output_direct), dpi=fig.dpi)
 
@@ -999,11 +1115,12 @@ def final_result_processing_and_plotting_model34(
     free_fluxes_list = const_parameter_dict['free_fluxes_list']
     ternary_sigma = const_parameter_dict['ternary_sigma']
     ternary_resolution = const_parameter_dict['ternary_resolution']
+    obj_tolerance = const_parameter_dict['obj_tolerance']
 
     valid_point_list = []
     invalid_point_list = []
-    contribution_array_list = []
-    obj_value_list = []
+    well_fit_three_contri_list = []
+    obj_diff_value_list = []
 
     for solver_result, processed_dict, var_parameter in zip(
             result_list, processed_result_list, var_parameter_list):
@@ -1011,26 +1128,32 @@ def final_result_processing_and_plotting_model34(
         free_fluxes_array = np.array([constant_fluxes_dict[flux_name] for flux_name in free_fluxes_list])
         if processed_dict['valid']:
             valid_point_list.append(free_fluxes_array)
-            contribution_array_list.append(processed_dict['contribution_array'])
-            obj_value_list.append(processed_dict['obj_value'])
+            obj_diff_value_list.append(processed_dict['obj_diff'])
+            if processed_dict['obj_diff'] < obj_tolerance:
+                well_fit_three_contri_list.append(processed_dict['contribution_array'])
         else:
             invalid_point_list.append(free_fluxes_array)
 
-    contribution_matrix = np.array(contribution_array_list)
+    if len(well_fit_three_contri_list) == 0:
+        raise ValueError('No point fit the constraint for contribution of carbon sources!')
+    contribution_matrix = np.array(well_fit_three_contri_list)
     output_data_dict = {
         'valid_point_list': valid_point_list,
         'invalid_point_list': invalid_point_list,
         'contribution_matrix': contribution_matrix,
-        'obj_value_list': obj_value_list,
+        'obj_diff_value_list': obj_diff_value_list,
     }
 
     with open("{}/output_data_dict".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    # plot_ternary_scatter(contribution_matrix)
+    # Ternary plot for density of contribution
     plot_ternary_density(
         contribution_matrix, ternary_sigma, ternary_resolution,
         save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
+    # Violin plot for objective function
+    fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
+    fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
 
     if platform.node() == 'BaranLiu-PC':
         plt.show()
@@ -1157,14 +1280,39 @@ def model3_dynamic_range_glucose_contribution():
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_result_processing_and_plotting_model34
-    # solver_func = model_solver_slsqp_parallel
-    solver_func = model_solver_slsqp_parallel_pool
 
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
     start = time.time()
-    solver_func(
+    model_solver_slsqp_parallel_pool(
+        data_collection, data_collection_func, data_collection_kwargs, parameter_construction_func,
+        parameter_construction_kwargs, hook_in_each_iteration, hook_after_all_iterations)
+    duration = time.time() - start
+    print("Time elapsed: {:.3f}s".format(duration))
+
+
+def model4_dynamic_range_glucose_contribution():
+    file_path = "data_collection_from_Dan.xlsx"
+    experiment_name_prefix = "no_tumor"
+    total_output_direct = "new_models"
+    # label_list = ["glucose", "lactate"]
+    label_list = ["glucose"]
+    data_collection_func = mid_data_loader
+    data_collection_kwargs = {
+        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'source_tissue_marker': liver_marker, 'sink_tissue_marker': muscle_marker}
+
+    parameter_construction_func = dynamic_range_model4
+    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
+    hook_in_each_iteration = result_processing_each_iteration_model34
+    hook_after_all_iterations = final_result_processing_and_plotting_model34
+
+    data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
+    data_collection = data_parser.data_checker(
+        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
+    start = time.time()
+    model_solver_slsqp_parallel_pool(
         data_collection, data_collection_func, data_collection_kwargs, parameter_construction_func,
         parameter_construction_kwargs, hook_in_each_iteration, hook_after_all_iterations)
     duration = time.time() - start
@@ -1177,7 +1325,8 @@ def main():
     # label_list = ["glucose"]
     # model1_dynamic_range_glucose_contribution()
     # model2_dynamic_range_glucose_contribution()
-    model3_dynamic_range_glucose_contribution()
+    # model3_dynamic_range_glucose_contribution()
+    model4_dynamic_range_glucose_contribution()
 
 
 if __name__ == '__main__':
