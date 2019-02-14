@@ -440,10 +440,11 @@ def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct, **other
     # g2_range = [1, 250]
     min_flux_value = 1
     max_flux_value = 8000
+    max_free_flux_value = 250
     optimization_repeat_time = 8
     obj_tolerance = 0.3
-    f1_range = [min_flux_value, max_flux_value]
-    g2_range = [min_flux_value, max_flux_value]
+    f1_range = [min_flux_value, max_free_flux_value]
+    g2_range = [min_flux_value, max_free_flux_value]
 
     if platform.node() == 'BaranLiu-PC':
         f1_num = 101
@@ -510,35 +511,40 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, paralle
     optimization_repeat_time = 8
     obj_tolerance = 0.5
     ternary_sigma = 0.15
-    sample = False
+    sample = True
+
+    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
 
     if platform.node() == 'BaranLiu-PC':
         total_point_num = int(1e3)
-        point_interval_list = [30, 30, 12, 12, 80]
+        # point_interval_list = [30, 30, 12, 12, 80]
         ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
-        point_interval_list = [10, 10, 4, 4, 20]
+        # point_interval_list = [10, 10, 4, 4, 20]
         ternary_resolution = int(2 ** 8)
+    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_list))).astype('int')
 
-    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
     if sample:
-        free_flux_value_list = [np.linspace(min_flux_value, max_flux_value, total_point_num) for _ in range(5)]
-        for row_index in range(5):
-            np.random.shuffle(free_flux_value_list[row_index])
-        # shuffled_points = np.array(shuffled_points_list).T
-        list_length = len(free_flux_value_list)
+        free_flux_raw_list = [
+            np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
+        for row_index, _ in enumerate(free_fluxes_range_list):
+            np.random.shuffle(free_flux_raw_list[row_index])
+        free_flux_value_list = np.array(free_flux_raw_list).T
+        list_length = total_point_num
     else:
-        free_fluxes_range_list = [
-            [min_flux_value, constant_flux_dict['Fcirc_glc']],
-            [min_flux_value, constant_flux_dict['Fcirc_glc']],
-            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-            [min_flux_value, constant_flux_dict['Fcirc_lac']],
-        ]
+        # free_fluxes_sequence_list = [
+        #     np.arange(*flux_range, point_interval) for flux_range, point_interval
+        #     in zip(free_fluxes_range_list, point_interval_list)]
         free_fluxes_sequence_list = [
-            np.arange(*flux_range, point_interval) for flux_range, point_interval
-            in zip(free_fluxes_range_list, point_interval_list)]
+            np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
         free_flux_value_list = it.product(*free_fluxes_sequence_list)
         list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
 
@@ -550,12 +556,6 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, paralle
 
     # iter_parameter_list = []
     chunk_size = 1000
-    # for free_flux_value in free_flux_value_list:
-    #     new_constant_flux_dict = dict(constant_flux_dict)
-    #     new_constant_flux_dict.update(
-    #         {flux_name: value for flux_name, value in zip(free_fluxes_list, free_flux_value)})
-    #     var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
-    #     iter_parameter_list.append(var_parameter_dict)
     with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
             partial(
@@ -590,42 +590,47 @@ def dynamic_range_model4(model_mid_data_dict: dict, total_output_direct, paralle
                          ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
     constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
-    fcirc_glc_max = 500
+    fcirc_glc_max = 250
 
     min_flux_value = 1
     max_flux_value = 5000
     optimization_repeat_time = 8
-    obj_tolerance = 99999
+    obj_tolerance = 0.4
     ternary_sigma = 0.15
     sample = False
 
+    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+
     if platform.node() == 'BaranLiu-PC':
-        total_point_num = int(1e3)
-        point_interval_list = [100, 100, 20, 20, 100]
+        total_point_num = int(3e3)
+        # point_interval_list = [50, 50, 20, 20, 100]
         ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
-        point_interval_list = [25, 25, 5, 5, 25]
+        # point_interval_list = [25, 25, 5, 5, 25]
         ternary_resolution = int(2 ** 8)
+    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_list))).astype('int')
 
-    free_fluxes_list = ['F1', 'G2', 'F9', 'G10', 'F3']
     if sample:
-        free_flux_value_list = [np.linspace(min_flux_value, max_flux_value, total_point_num) for _ in range(5)]
-        for row_index in range(5):
-            np.random.shuffle(free_flux_value_list[row_index])
-        # shuffled_points = np.array(shuffled_points_list).T
-        list_length = len(free_flux_value_list)
+        free_flux_raw_list = [
+            np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
+        for row_index, _ in enumerate(free_fluxes_range_list):
+            np.random.shuffle(free_flux_raw_list[row_index])
+        free_flux_value_list = np.array(free_flux_raw_list).T
+        list_length = total_point_num
     else:
-        free_fluxes_range_list = [
-            [min_flux_value, fcirc_glc_max],
-            [min_flux_value, fcirc_glc_max],
-            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-            [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-            [min_flux_value, constant_flux_dict['Fcirc_lac']],
-        ]
+        # free_fluxes_sequence_list = [
+        #     np.arange(*flux_range, point_interval) for flux_range, point_interval
+        #     in zip(free_fluxes_range_list, point_interval_list)]
         free_fluxes_sequence_list = [
-            np.arange(*flux_range, point_interval) for flux_range, point_interval
-            in zip(free_fluxes_range_list, point_interval_list)]
+            np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
         free_flux_value_list = it.product(*free_fluxes_sequence_list)
         list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
 

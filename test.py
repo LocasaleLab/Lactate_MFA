@@ -9,6 +9,7 @@ from matplotlib import cm
 import re
 import pickle
 import cvxopt
+import itertools as it
 
 
 def emoji_test():
@@ -527,6 +528,32 @@ def count_density_dist(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8,
     tax.show()
 
 
+def shuffle_test():
+    total_point_num = 100
+    free_fluxes_range_list = [[0, 1], [0, 10], [0, 100]]
+    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_range_list))).astype('int')
+
+    free_flux_raw_list = [
+        np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
+    for row_index in range(len(free_fluxes_range_list)):
+        np.random.shuffle(free_flux_raw_list[row_index])
+    free_flux_value_list_random_sample = np.array(free_flux_raw_list).T
+
+    free_fluxes_sequence_list = [
+        np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
+    free_flux_value_list_iteration = np.array(list(it.product(*free_fluxes_sequence_list)))
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    plot = ax.scatter(
+        free_flux_value_list_random_sample[:, 0], free_flux_value_list_random_sample[:, 1],
+        free_flux_value_list_random_sample[:, 2])
+    plot = ax.scatter(
+        free_flux_value_list_iteration[:, 0], free_flux_value_list_iteration[:, 1],
+        free_flux_value_list_iteration[:, 2])
+    plt.show()
+
+
 def main():
     # emoji_test()
     # surrounding_circle()
@@ -538,7 +565,8 @@ def main():
     # convex_test()
     # multiprocess_test()
     # ternary_function_test()
-    ternary_test()
+    # ternary_test()
+    shuffle_test()
 
 
 if __name__ == '__main__':

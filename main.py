@@ -1044,6 +1044,8 @@ def solve_net_contribution_fluxes_model4(data_collection, label_list):
     if contribution_violin_plot:
         glucose_contri_vector = glucose_contri_matrix.reshape([-1])
         glucose_contri_vector = glucose_contri_vector[~np.isnan(glucose_contri_vector)]
+        if len(glucose_contri_vector) == 0:
+            raise ValueError('No point fit the constraint for contribution of carbon sources!')
         contribution_variation_dict = {
             "normal": glucose_contri_vector,
         }
@@ -1217,12 +1219,12 @@ def raw_data_plotting(data_collection, label_list):
 
 
 def main():
-    file_path = "data_collection.xlsx"
-    experiment_name_prefix = "Sup_Fig_5_fasted"
-    label_list = ["glucose", "lactate"]
-    # file_path = "data_collection_from_Dan.xlsx"
-    # experiment_name_prefix = "no_tumor"
-    # label_list = ["glucose"]
+    # file_path = "data_collection.xlsx"
+    # experiment_name_prefix = "Sup_Fig_5_fasted"
+    # label_list = ["glucose", "lactate"]
+    file_path = "data_collection_from_Dan.xlsx"
+    experiment_name_prefix = "no_tumor"
+    label_list = ["glucose"]
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "lactate"], ["glucose", "pyruvate", "lactate"])
@@ -1231,9 +1233,9 @@ def main():
     # solve_single_result_model3(data_collection, label_list)
     # solve_single_result_model4(data_collection, label_list)
     # solve_parameter_sensitivity_model3(data_collection, label_list)
-    solve_net_contribution_fluxes_model3(data_collection, label_list)
+    # solve_net_contribution_fluxes_model3(data_collection, label_list)
     # glucose_contribution_violin_model3(data_collection, label_list)
-    # solve_net_contribution_fluxes_model4(data_collection, label_list)
+    solve_net_contribution_fluxes_model4(data_collection, label_list)
     # solve_param_sensitivity(data_collection, label_list, solve_one_case_model3)
     # variation_analysis_model3(data_collection, label_list)
     # variation_analysis_model4(data_collection, label_list)
