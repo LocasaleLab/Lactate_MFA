@@ -8,6 +8,9 @@ from scipy.stats import rv_discrete
 import matplotlib.pyplot as plt
 
 import data_parser as data_parser
+import config
+
+color_set = config.Color()
 
 
 class ArbitraryDist(object):
@@ -399,7 +402,7 @@ def plot_dist(f_result, x_value_index, leave_out_set):
 
     def plot_ci(_ax, x, y, upper, lower, label):
         _ax.plot(x, y, label=label)
-        _ax.fill_between(x, lower, upper, alpha=alpha_value)
+        _ax.fill_between(x, lower, upper, alpha=color_set.alpha_value)
 
     fig, ax = plt.subplots(ncols=1, nrows=1)
     percent = 95
@@ -759,8 +762,8 @@ def violin_plot(data_dict, color_dict=None):
         parts['cmedians'].set_edgecolor(color_list)
         for pc, color in zip(parts['bodies'], color_list):
             pc.set_facecolor(color)
-            pc.set_alpha(alpha_value)
-    dash_color = np.array([255, 126, 22]) / 255
+            pc.set_alpha(color_set.alpha_value)
+    dash_color = color_set.orange
     ax.axhline(0.5, linestyle='--', color=dash_color)
     ax.set_ylim([-0.1, 1.1])
     ax.set_xticks(x_axis_position)
@@ -770,11 +773,10 @@ def violin_plot(data_dict, color_dict=None):
 
 
 compare_color_dict = {
-    'low': np.array([112, 48, 160]) / 255,
-    'original': np.array([21, 113, 177]) / 255,
-    'high': np.array([251, 138, 68]) / 255
+    'low': color_set.purple,
+    'original': color_set.blue,
+    'high': color_set.orange
 }
-alpha_value = 0.3
 
 
 def violin_test():
@@ -882,13 +884,13 @@ def variation_analysis_model3(data_collection, label_list):
             bin_num = 200
             n_normal, bins_normal, _ = ax.hist(
                 normal_glucose_contri_vector, bins=bin_num, density=True, label="original",
-                color=(0.992, 0.906, 0.141), alpha=alpha_value)
+                color=(0.992, 0.906, 0.141), alpha=color_set.alpha_value)
             n_high, bins_high, _ = ax.hist(
                 high_glucose_contri_vector, bins=bin_num, density=True, label="high",
-                color=(0.188, 0.404, 0.553), alpha=alpha_value)
+                color=(0.188, 0.404, 0.553), alpha=color_set.alpha_value)
             n_low, bins_low, _ = ax.hist(
                 low_glucose_contri_vector, bins=bin_num, density=True, label="low",
-                color=(0.208, 0.718, 0.471), alpha=alpha_value)
+                color=(0.208, 0.718, 0.471), alpha=color_set.alpha_value)
             ax.set_xlim([0, 1])
             # ax.legend()
             fig.savefig("./Figures/model3/glucose_contribution_variation_{}_{}_{}.png".format(
@@ -1194,17 +1196,15 @@ def raw_data_plotting(data_collection, label_list):
     for mixed_key, mid_array in collected_data_dict.items():
         final_average_dict[mixed_key], final_std_dict[mixed_key] = mean_std(mid_array)
 
-    # color_array = np.array([187, 213, 232]) / 255
-    base_color = compare_color_dict['original']
-    background_color = np.array([221, 241, 255]) / 255
-    base_alpha_value = alpha_value + 0.1
+    base_color = color_set.blue
+    base_alpha_value = color_set.alpha_value + 0.1
     for mixed_key, mid_array in final_average_dict.items():
         edge = 0.2
         array_len = len(mid_array)
         fig_size = (array_len + edge * 2, 4)
         fig, ax = plt.subplots(figsize=fig_size)
         x_loc = np.arange(array_len) + 0.5
-        ax.bar(x_loc, mid_array, width=0.6, color=base_color, alpha=base_alpha_value)
+        ax.bar(x_loc, mid_array, width=0.6, color=base_color, alpha=color_set.alpha_for_bar_plot)
         ax.errorbar(
             x_loc, mid_array, yerr=final_std_dict[mixed_key], capsize=5, fmt='none',
             color=base_color)
