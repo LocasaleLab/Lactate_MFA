@@ -48,16 +48,16 @@ def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct, **other
         g2_num = 51
         g2_display_interv = 50
     else:
-        f1_num = 1000
+        f1_num = 1500
         f1_display_interv = 250
-        g2_num = 1000
+        g2_num = 1500
         g2_display_interv = 250
 
     f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
     min_flux_value = 1
     max_flux_value = 5000
-    optimization_repeat_time = 8
+    optimization_repeat_time = 10
     obj_tolerance = 0.1
 
     balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
@@ -105,7 +105,7 @@ def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct, **other
     min_flux_value = 1
     max_flux_value = 8000
     max_free_flux_value = 250
-    optimization_repeat_time = 8
+    optimization_repeat_time = 10
     obj_tolerance = 0.3
     f1_range = [min_flux_value, max_free_flux_value]
     g2_range = [min_flux_value, max_free_flux_value]
@@ -189,7 +189,7 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, paralle
 
     min_flux_value = 1
     max_flux_value = 5000
-    optimization_repeat_time = 8
+    optimization_repeat_time = 10
     obj_tolerance = 0.5
     ternary_sigma = 0.15
     sample = True
@@ -268,7 +268,7 @@ def dynamic_range_model4(model_mid_data_dict: dict, total_output_direct, paralle
 
     min_flux_value = 1
     max_flux_value = 5000
-    optimization_repeat_time = 8
+    optimization_repeat_time = 10
     obj_tolerance = 0.4
     ternary_sigma = 0.15
     sample = False
@@ -346,7 +346,7 @@ def dynamic_range_model5(model_mid_data_dict: dict, total_output_direct, paralle
 
     min_flux_value = 1
     max_flux_value = 5000
-    optimization_repeat_time = 8
+    optimization_repeat_time = 10
     obj_tolerance = 0.4
     ternary_sigma = 0.15
     sample = False

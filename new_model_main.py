@@ -336,6 +336,7 @@ def plot_raw_mid_bar(data_dict, color_dict=None, title=None, save_path=None):
     ax.set_ylim([0, 1])
     ax.set_xlim([-edge, array_len + edge])
     ax.set_xticks(x_mid_loc)
+    ax.set_xticklabels([])
     ax.set_yticks(np.arange(0, 1.1, 0.2))
     ax.set_yticklabels([])
     ax.legend()
@@ -573,8 +574,8 @@ def fitting_result_display(
 
 
 def main():
-    model_parameter_dict = model_specific_functions.model1_parameters()
-    # model_parameter_dict = model_specific_functions.model2_parameters()
+    # model_parameter_dict = model_specific_functions.model1_parameters()
+    model_parameter_dict = model_specific_functions.model2_parameters()
     # model_parameter_dict = model_specific_functions.model3_parameters()
     # model_parameter_dict = model_specific_functions.model4_parameters()
     # model_parameter_dict = model_specific_functions.model5_parameters()

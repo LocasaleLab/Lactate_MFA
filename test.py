@@ -390,7 +390,7 @@ def multiprocess_test():
 
 count_q = mp.Queue()
 
-from new_model_main import plot_ternary_scatter
+# from new_model_main import plot_ternary_scatter
 import scipy.interpolate
 import ternary
 
@@ -554,6 +554,17 @@ def shuffle_test():
     plt.show()
 
 
+def read_test():
+    data_dict_file_path = "C:/Data/PhD/LocasaleLab/Scripts/lactate_exchange/new_models/model4_server"
+    data_dict_file_path = "{}/output_data_dict".format(data_dict_file_path)
+    with open(data_dict_file_path, 'rb') as f_in:
+        data_dict = pickle.load(f_in)
+    contribution_matrix = data_dict['contribution_matrix']
+    print(np.count_nonzero(contribution_matrix[:, 0] > 0.5))
+    print(np.count_nonzero(contribution_matrix[:, 1] > 0.5))
+    print(np.count_nonzero(contribution_matrix[:, 2] > 0.5))
+
+
 def main():
     # emoji_test()
     # surrounding_circle()
@@ -566,7 +577,8 @@ def main():
     # multiprocess_test()
     # ternary_function_test()
     # ternary_test()
-    shuffle_test()
+    # shuffle_test()
+    read_test()
 
 
 if __name__ == '__main__':
