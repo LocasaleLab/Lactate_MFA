@@ -1,4 +1,7 @@
 import multiprocessing as mp
+import itertools as it
+import pickle
+import gzip
 
 import emoji
 import numpy as np
@@ -7,9 +10,19 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import re
-import pickle
 import cvxopt
-import itertools as it
+
+
+class Result(object):
+    def __init__(self, result_dict: dict, obj_value: float, success: bool, minimal_obj_value: float):
+        self.result_dict = result_dict
+        self.obj_value = obj_value
+        self.success = success
+        self.minimal_obj_value = minimal_obj_value
+
+    def __repr__(self):
+        return "Result: {}\nObjective value: {}\nSuccess: {}\nMinimal objective value: {}".format(
+            self.result_dict, self.obj_value, self.success, self.minimal_obj_value)
 
 
 def emoji_test():
@@ -555,14 +568,17 @@ def shuffle_test():
 
 
 def read_test():
-    data_dict_file_path = "C:/Data/PhD/LocasaleLab/Scripts/lactate_exchange/new_models/model4_server"
-    data_dict_file_path = "{}/output_data_dict".format(data_dict_file_path)
-    with open(data_dict_file_path, 'rb') as f_in:
+    data_dict_file_path = "C:/Data/PhD/LocasaleLab/Scripts/lactate_exchange/new_models/model7"
+    data_dict_file_path = "{}/output_data_dict.gz".format(data_dict_file_path)
+    with gzip.open(data_dict_file_path, 'rb') as f_in:
         data_dict = pickle.load(f_in)
     contribution_matrix = data_dict['contribution_matrix']
     print(np.count_nonzero(contribution_matrix[:, 0] > 0.5))
     print(np.count_nonzero(contribution_matrix[:, 1] > 0.5))
     print(np.count_nonzero(contribution_matrix[:, 2] > 0.5))
+    # valid_matrix = data_dict['valid_matrix']
+    # print(np.count_nonzero(valid_matrix == 0))
+    # print(valid_matrix.size)
 
 
 def main():

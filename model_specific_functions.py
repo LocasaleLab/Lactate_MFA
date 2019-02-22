@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tqdm
 
+import data_parser
 import config
 import new_model_main as common_functions
 
@@ -29,6 +30,28 @@ class FreeVariable(object):
 
     def __iter__(self):
         return self.value_array.__iter__()
+
+
+def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
+    file_path = "data_collection.xlsx"
+    experiment_name_prefix = "Sup_Fig_5_fasted"
+    label_list = ["glucose"]
+    data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
+    data_collection = data_parser.data_checker(
+        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
+    model_mid_data_dict = data_collection_func(data_collection.mid_data, **data_collection_kwargs)
+    return model_mid_data_dict
+
+
+def data_loader_dan(data_collection_func, data_collection_kwargs):
+    file_path = "data_collection_from_Dan.xlsx"
+    experiment_name_prefix = "no_tumor"
+    label_list = ["glucose"]
+    data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
+    data_collection = data_parser.data_checker(
+        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
+    model_mid_data_dict = data_collection_func(data_collection.mid_data, **data_collection_kwargs)
+    return model_mid_data_dict
 
 
 def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct, **other_parameters):
@@ -413,6 +436,147 @@ def dynamic_range_model5(model_mid_data_dict: dict, total_output_direct, paralle
     return const_parameter_dict, iter_parameter_list
 
 
+def dynamic_range_model6(model_mid_data_dict: dict, total_output_direct, **other_parameters):
+    output_direct = "{}/model6".format(total_output_direct)
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fin', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'F10': 50, 'Fcirc_lac': 600}
+
+    # f1_range = [1, 250]
+    # g2_range = [1, 250]
+    min_flux_value = 1
+    max_flux_value = 8000
+    max_free_flux_value = 300
+    optimization_repeat_time = 10
+    obj_tolerance = 0.3
+    f1_range = [min_flux_value, max_free_flux_value]
+    g2_range = [min_flux_value, max_free_flux_value]
+
+    if test_running:
+        f1_num = 101
+        f1_display_interv = 100
+        g2_num = 101
+        g2_display_interv = 100
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
+
+    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+
+    balance_list, mid_constraint_list = model6_construction(model_mid_data_dict)
+    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
+        balance_list, complete_flux_dict)
+    (
+        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
+        optimal_obj_value) = common_functions.mid_constraint_constructor(
+        mid_constraint_list, complete_flux_dict)
+
+    iter_parameter_list = []
+    matrix_loc_list = []
+    for f1_index, f1 in enumerate(f1_free_flux):
+        for g2_index, g2 in enumerate(g2_free_flux):
+            new_constant_flux_dict = dict(constant_flux_dict)
+            new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
+            var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
+            iter_parameter_list.append(var_parameter_dict)
+            matrix_loc_list.append((f1_index, g2_index))
+    const_parameter_dict = {
+        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
+        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
+    }
+    return const_parameter_dict, iter_parameter_list
+
+
+def dynamic_range_model7(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
+    output_direct = "{}/model7".format(total_output_direct)
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
+                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'F12': 100, 'Fcirc_lac': 400, 'Fcirc_pyr': 200}
+    fcirc_glc_max = 300
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.4
+    ternary_sigma = 0.15
+    sample = False
+
+    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+
+    if test_running:
+        total_point_num = int(3e3)
+        ternary_resolution = int(2 ** 7)
+    else:
+        total_point_num = int(3e6)
+        ternary_resolution = int(2 ** 8)
+    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
+
+    if sample:
+        free_flux_raw_list = [
+            np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
+        for row_index, _ in enumerate(free_fluxes_range_list):
+            np.random.shuffle(free_flux_raw_list[row_index])
+        free_flux_value_list = np.array(free_flux_raw_list).T
+        list_length = total_point_num
+    else:
+        free_fluxes_sequence_list = [
+            np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
+        free_flux_value_list = it.product(*free_fluxes_sequence_list)
+        list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
+
+    balance_list, mid_constraint_list = model7_construction(model_mid_data_dict)
+    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
+        balance_list, complete_flux_dict)
+    (
+        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
+        optimal_obj_value) = common_functions.mid_constraint_constructor(
+        mid_constraint_list, complete_flux_dict)
+
+    # iter_parameter_list = []
+    chunk_size = 1000
+    iter_parameter_list = parameter_generator_parallel(
+        constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
+        chunk_size)
+
+    const_parameter_dict = {
+        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
+        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
+        'free_fluxes_name_list': free_fluxes_name_list,
+
+        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
+    }
+    return const_parameter_dict, iter_parameter_list
+
+
 def mid_data_loader_model1234(
         data_collection_dict, label_list, mouse_id_list, source_tissue_marker, sink_tissue_marker):
     mid_data_dict = {
@@ -591,7 +755,7 @@ def model2_construction(mid_data_dict):
         constant_set.target_label: mid_data_dict['lac_sink']}
     glc_plasma_mid_eq = {
         'F2': mid_data_dict['glc_source'], 'G2': mid_data_dict['glc_sink'],
-        'Fin': mid_data_dict['glc_natural'], constant_set.target_label: mid_data_dict['glc_plasma']}
+        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
 
     balance_list = [
         glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
@@ -770,6 +934,108 @@ def model5_construction(mid_data_dict):
     mid_constraint_list = [
         glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, glc_sink1_mid_eq,
         pyr_sink1_mid_eq, lac_sink1_mid_eq, glc_sink2_mid_eq, pyr_sink2_mid_eq, lac_sink2_mid_eq]
+
+    return balance_list, mid_constraint_list
+
+
+def model6_construction(mid_data_dict):
+    # Balance equations:
+    glc_source_balance_eq = {'input': ['F1', 'F6', 'F10'], 'output': ['F2', 'F5']}
+    pyr_source_balance_eq = {'input': ['F5', 'F7'], 'output': ['F6', 'F8', 'F9']}
+    lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4'], 'output': ['F3', 'G3']}
+    glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
+    pyr_sink_balance_eq = {'input': ['G5', 'G7'], 'output': ['G6', 'G8', 'G9']}
+    lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
+    lac_circ_balance_eq = {'input': ['F4', 'G4'], 'output': ['Fcirc_lac']}
+
+    # MID equations:
+
+    glc_source_mid_eq = {
+        'F1': mid_data_dict['glc_plasma'], 'F6': mid_data_dict['pyr_to_glc_source'],
+        'F10': mid_data_dict['glc_natural'], constant_set.target_label: mid_data_dict['glc_source']}
+    pyr_source_mid_eq = {
+        'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
+        constant_set.target_label: mid_data_dict['pyr_source']}
+    lac_source_mid_eq = {
+        'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
+        constant_set.target_label: mid_data_dict['lac_source']}
+    glc_sink_mid_eq = {
+        'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
+        constant_set.target_label: mid_data_dict['glc_sink']}
+    pyr_sink_mid_eq = {
+        'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
+        constant_set.target_label: mid_data_dict['pyr_sink']}
+    lac_sink_mid_eq = {
+        'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
+        constant_set.target_label: mid_data_dict['lac_sink']}
+    glc_plasma_mid_eq = {
+        'F2': mid_data_dict['glc_source'], 'G2': mid_data_dict['glc_sink'],
+        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
+
+    balance_list = [
+        glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
+        lac_plasma_balance_eq, glc_sink_balance_eq, pyr_sink_balance_eq, lac_sink_balance_eq,
+        lac_circ_balance_eq]
+    mid_constraint_list = [
+        glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, glc_sink_mid_eq,
+        pyr_sink_mid_eq, lac_sink_mid_eq, glc_plasma_mid_eq]
+
+    return balance_list, mid_constraint_list
+
+
+def model7_construction(mid_data_dict):
+    # Balance equations:
+    glc_source_balance_eq = {'input': ['F1', 'F6', 'F12'], 'output': ['F2', 'F5']}
+    pyr_source_balance_eq = {'input': ['F5', 'F7', 'F9'], 'output': ['F6', 'F8', 'F10', 'F11']}
+    lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1', 'H1']}
+    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['F9', 'G9', 'H2']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'H2'], 'output': ['F3', 'G3', 'H3']}
+    glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
+    pyr_sink_balance_eq = {'input': ['G5', 'G7', 'G9'], 'output': ['G6', 'G8', 'G10', 'G11']}
+    lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
+    lac_circ_balance_eq = {'input': ['F3', 'G3'], 'output': ['Fcirc_lac']}
+    pyr_circ_balance_eq = {'input': ['F9', 'G9'], 'output': ['Fcirc_pyr']}
+
+    # MID equations:
+    glc_source_mid_eq = {
+        'F1': mid_data_dict['glc_plasma'], 'F6': mid_data_dict['pyr_to_glc_source'],
+        'F12': mid_data_dict['glc_natural'], constant_set.target_label: mid_data_dict['glc_source']}
+    pyr_source_mid_eq = {
+        'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
+        constant_set.target_label: mid_data_dict['pyr_source']}
+    lac_source_mid_eq = {
+        'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
+        constant_set.target_label: mid_data_dict['lac_source']}
+    glc_plasma_mid_eq = {
+        'G2': mid_data_dict['glc_sink'], 'F2': mid_data_dict['glc_source'],
+        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
+    lac_plasma_mid_eq = {
+        'G4': mid_data_dict['lac_sink'], 'F4': mid_data_dict['lac_source'],
+        'H2': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['lac_plasma']}
+    pyr_plasma_mid_eq = {
+        'G10': mid_data_dict['pyr_sink'], 'F10': mid_data_dict['pyr_source'],
+        'H1': mid_data_dict['glc_to_pyr_plasma'], 'H3': mid_data_dict['lac_plasma'],
+        constant_set.target_label: mid_data_dict['pyr_plasma']}
+    glc_sink_mid_eq = {
+        'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
+        constant_set.target_label: mid_data_dict['glc_sink']}
+    pyr_sink_mid_eq = {
+        'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
+        constant_set.target_label: mid_data_dict['pyr_sink']}
+    lac_sink_mid_eq = {
+        'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
+        constant_set.target_label: mid_data_dict['lac_sink']}
+
+    balance_list = [
+        glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
+        pyr_plasma_balance_eq, lac_plasma_balance_eq, glc_sink_balance_eq, pyr_sink_balance_eq,
+        lac_sink_balance_eq, lac_circ_balance_eq, pyr_circ_balance_eq]
+    mid_constraint_list = [
+        glc_source_mid_eq, pyr_source_mid_eq, lac_source_mid_eq, glc_plasma_mid_eq, lac_plasma_mid_eq,
+        pyr_plasma_mid_eq, glc_sink_mid_eq, pyr_sink_mid_eq, lac_sink_mid_eq]
 
     return balance_list, mid_constraint_list
 
@@ -1062,31 +1328,22 @@ def final_result_processing_and_plotting_model5(
 
 def model1_parameters():
     model_name = "model1"
-    file_path = "data_collection.xlsx"
-    experiment_name_prefix = "Sup_Fig_5_fasted"
     total_output_direct = "new_models"
-    # label_list = ["glucose", "lactate"]
-    label_list = ["glucose"]
-    data_collection_func = mid_data_loader_model1234
     data_collection_kwargs = {
-        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     parameter_construction_func = dynamic_range_model1
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_result_processing_and_plotting_model12
     model_construction_func = model1_construction
-    # solver_func = scanning_slsqp_parallel
 
     output_parameter_dict = {
         'model_name': model_name,
-        'file_path': file_path,
-        'experiment_name_prefix': experiment_name_prefix,
-        'label_list': label_list,
-
-        'data_collection_func': data_collection_func,
-        'data_collection_kwargs': data_collection_kwargs,
+        'model_mid_data_dict': model_mid_data_dict,
         'parameter_construction_func': parameter_construction_func,
         'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
@@ -1098,31 +1355,22 @@ def model1_parameters():
 
 def model2_parameters():
     model_name = "model2"
-    file_path = "data_collection_from_Dan.xlsx"
-    experiment_name_prefix = "no_tumor"
     total_output_direct = "new_models"
-    # label_list = ["glucose", "lactate"]
-    label_list = ["glucose"]
-    data_collection_func = mid_data_loader_model1234
+
     data_collection_kwargs = {
-        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     parameter_construction_func = dynamic_range_model2
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_result_processing_and_plotting_model12
     model_construction_func = model2_construction
-    # solver_func = scanning_slsqp_parallel
 
     output_parameter_dict = {
         'model_name': model_name,
-        'file_path': file_path,
-        'experiment_name_prefix': experiment_name_prefix,
-        'label_list': label_list,
-
-        'data_collection_func': data_collection_func,
-        'data_collection_kwargs': data_collection_kwargs,
+        'model_mid_data_dict': model_mid_data_dict,
         'parameter_construction_func': parameter_construction_func,
         'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
@@ -1134,15 +1382,12 @@ def model2_parameters():
 
 def model3_parameters():
     model_name = "model3"
-    file_path = "data_collection.xlsx"
-    experiment_name_prefix = "Sup_Fig_5_fasted"
     total_output_direct = "new_models"
-    # label_list = ["glucose", "lactate"]
-    label_list = ["glucose"]
-    data_collection_func = mid_data_loader_model1234
+
     data_collection_kwargs = {
-        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     parameter_construction_func = dynamic_range_model3
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
@@ -1152,12 +1397,7 @@ def model3_parameters():
 
     output_parameter_dict = {
         'model_name': model_name,
-        'file_path': file_path,
-        'experiment_name_prefix': experiment_name_prefix,
-        'label_list': label_list,
-
-        'data_collection_func': data_collection_func,
-        'data_collection_kwargs': data_collection_kwargs,
+        'model_mid_data_dict': model_mid_data_dict,
         'parameter_construction_func': parameter_construction_func,
         'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
@@ -1169,15 +1409,12 @@ def model3_parameters():
 
 def model4_parameters():
     model_name = "model4"
-    file_path = "data_collection_from_Dan.xlsx"
-    experiment_name_prefix = "no_tumor"
     total_output_direct = "new_models"
-    # label_list = ["glucose", "lactate"]
-    label_list = ["glucose"]
-    data_collection_func = mid_data_loader_model1234
+
     data_collection_kwargs = {
-        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     parameter_construction_func = dynamic_range_model4
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
@@ -1187,12 +1424,7 @@ def model4_parameters():
 
     output_parameter_dict = {
         'model_name': model_name,
-        'file_path': file_path,
-        'experiment_name_prefix': experiment_name_prefix,
-        'label_list': label_list,
-
-        'data_collection_func': data_collection_func,
-        'data_collection_kwargs': data_collection_kwargs,
+        'model_mid_data_dict': model_mid_data_dict,
         'parameter_construction_func': parameter_construction_func,
         'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
@@ -1204,16 +1436,13 @@ def model4_parameters():
 
 def model5_parameters():
     model_name = "model5"
-    file_path = "data_collection.xlsx"
-    experiment_name_prefix = "Sup_Fig_5_fasted"
     total_output_direct = "new_models"
-    # label_list = ["glucose", "lactate"]
-    label_list = ["glucose"]
-    data_collection_func = mid_data_loader_model5
+
     data_collection_kwargs = {
-        'label_list': label_list, 'mouse_id_list': ['M1'],
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink1_tissue_marker': constant_set.heart_marker,
         'sink2_tissue_marker': constant_set.muscle_marker}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model5, data_collection_kwargs)
 
     parameter_construction_func = dynamic_range_model5
     parameter_construction_kwargs = {'total_output_direct': total_output_direct}
@@ -1223,12 +1452,59 @@ def model5_parameters():
 
     output_parameter_dict = {
         'model_name': model_name,
-        'file_path': file_path,
-        'experiment_name_prefix': experiment_name_prefix,
-        'label_list': label_list,
+        'model_mid_data_dict': model_mid_data_dict,
+        'parameter_construction_func': parameter_construction_func,
+        'parameter_construction_kwargs': parameter_construction_kwargs,
+        'model_construction_func': model_construction_func,
+        'hook_in_each_iteration': hook_in_each_iteration,
+        'hook_after_all_iterations': hook_after_all_iterations
+    }
+    return output_parameter_dict
 
-        'data_collection_func': data_collection_func,
-        'data_collection_kwargs': data_collection_kwargs,
+
+def model6_parameters():
+    model_name = "model6"
+    total_output_direct = "new_models"
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
+
+    parameter_construction_func = dynamic_range_model6
+    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
+    hook_in_each_iteration = result_processing_each_iteration_model12
+    hook_after_all_iterations = final_result_processing_and_plotting_model12
+    model_construction_func = model6_construction
+
+    output_parameter_dict = {
+        'model_name': model_name,
+        'model_mid_data_dict': model_mid_data_dict,
+        'parameter_construction_func': parameter_construction_func,
+        'parameter_construction_kwargs': parameter_construction_kwargs,
+        'model_construction_func': model_construction_func,
+        'hook_in_each_iteration': hook_in_each_iteration,
+        'hook_after_all_iterations': hook_after_all_iterations
+    }
+    return output_parameter_dict
+
+
+def model7_parameters():
+    model_name = "model7"
+    total_output_direct = "new_models"
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
+
+    parameter_construction_func = dynamic_range_model7
+    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
+    hook_in_each_iteration = result_processing_each_iteration_model34
+    hook_after_all_iterations = final_result_processing_and_plotting_model34
+    model_construction_func = model7_construction
+
+    output_parameter_dict = {
+        'model_name': model_name,
+        'model_mid_data_dict': model_mid_data_dict,
         'parameter_construction_func': parameter_construction_func,
         'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,

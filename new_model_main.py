@@ -484,15 +484,8 @@ def model_solver_single(
 
 
 def scanning_slsqp_parallel(
-        file_path, experiment_name_prefix, label_list, data_collection_func, data_collection_kwargs,
-        parameter_construction_func, parameter_construction_kwargs, hook_in_each_iteration,
-        hook_after_all_iterations, **other_parameters):
-    data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
-    data_collection = data_parser.data_checker(
-        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
-    raw_data_collection_dict = data_collection.mid_data
-    model_mid_data_dict = data_collection_func(raw_data_collection_dict, **data_collection_kwargs)
-
+        model_mid_data_dict, parameter_construction_func, parameter_construction_kwargs,
+        hook_in_each_iteration, hook_after_all_iterations, **other_parameters):
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
     # result = pool.map_async(task, [(x, q) for x in range(10)])
@@ -532,25 +525,10 @@ def scanning_slsqp_parallel(
 #     self.success = success
 #     self.minimal_obj_value = minimal_obj_value
 def fitting_result_display(
-        file_path, experiment_name_prefix, label_list, data_collection_func, data_collection_kwargs,
-        model_name, model_construction_func, **other_parameters):
-    # model_name = "model1"
-    #
-    # file_path = "data_collection.xlsx"
-    # experiment_name_prefix = "Sup_Fig_5_fasted"
-    # # label_list = ["glucose", "lactate"]
-    # label_list = ["glucose"]
-    # data_collection_kwargs = {
-    #     'label_list': label_list, 'mouse_id_list': ['M1'],
-    #     'source_tissue_marker': liver_marker, 'sink_tissue_marker': heart_marker}
-
+        model_mid_data_dict, model_name, model_construction_func, **other_parameters):
     server_data = False
-
     total_output_direct = "new_models"
-    data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
-    data_collection = data_parser.data_checker(
-        data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
-    model_mid_data_dict = data_collection_func(data_collection.mid_data, **data_collection_kwargs)
+
     balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
 
     if server_data:
@@ -575,10 +553,12 @@ def fitting_result_display(
 
 def main():
     # model_parameter_dict = model_specific_functions.model1_parameters()
-    model_parameter_dict = model_specific_functions.model2_parameters()
+    # model_parameter_dict = model_specific_functions.model2_parameters()
     # model_parameter_dict = model_specific_functions.model3_parameters()
     # model_parameter_dict = model_specific_functions.model4_parameters()
     # model_parameter_dict = model_specific_functions.model5_parameters()
+    # model_parameter_dict = model_specific_functions.model6_parameters()
+    model_parameter_dict = model_specific_functions.model7_parameters()
     scanning_slsqp_parallel(**model_parameter_dict)
     fitting_result_display(**model_parameter_dict)
 
