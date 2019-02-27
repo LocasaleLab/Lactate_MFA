@@ -54,42 +54,23 @@ def data_loader_dan(data_collection_func, data_collection_kwargs):
     return model_mid_data_dict
 
 
-def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct, **other_parameters):
-    output_direct = "{}/model1".format(total_output_direct)
+def dynamic_range_model12(
+        model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
+        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
 
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test_running:
-        f1_num = 51
-        f1_display_interv = 50
-        g2_num = 51
-        g2_display_interv = 50
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.1
-
-    balance_list, mid_constraint_list = model1_construction(model_mid_data_dict)
+    balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
         balance_list, complete_flux_dict)
     (
         substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
         optimal_obj_value) = common_functions.mid_constraint_constructor(
         mid_constraint_list, complete_flux_dict)
+
+    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
 
     iter_parameter_list = []
     matrix_loc_list = []
@@ -100,70 +81,7 @@ def dynamic_range_model1(model_mid_data_dict: dict, total_output_direct, **other
             var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
             iter_parameter_list.append(var_parameter_dict)
             matrix_loc_list.append((f1_index, g2_index))
-    const_parameter_dict = {
-        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
-        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
 
-        'optimization_repeat_time': optimization_repeat_time,
-        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
-    }
-    return const_parameter_dict, iter_parameter_list
-
-
-def dynamic_range_model2(model_mid_data_dict: dict, total_output_direct, **other_parameters):
-    output_direct = "{}/model2".format(total_output_direct)
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(9)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fin', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500}
-
-    # f1_range = [1, 250]
-    # g2_range = [1, 250]
-    min_flux_value = 1
-    max_flux_value = 8000
-    max_free_flux_value = 250
-    optimization_repeat_time = 10
-    obj_tolerance = 0.3
-    f1_range = [min_flux_value, max_free_flux_value]
-    g2_range = [min_flux_value, max_free_flux_value]
-
-    if test_running:
-        f1_num = 101
-        f1_display_interv = 100
-        g2_num = 101
-        g2_display_interv = 100
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
-
-    balance_list, mid_constraint_list = model2_construction(model_mid_data_dict)
-    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
-        balance_list, complete_flux_dict)
-    (
-        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
-        optimal_obj_value) = common_functions.mid_constraint_constructor(
-        mid_constraint_list, complete_flux_dict)
-
-    iter_parameter_list = []
-    matrix_loc_list = []
-    for f1_index, f1 in enumerate(f1_free_flux):
-        for g2_index, g2 in enumerate(g2_free_flux):
-            new_constant_flux_dict = dict(constant_flux_dict)
-            new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
-            var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
-            iter_parameter_list.append(var_parameter_dict)
-            matrix_loc_list.append((f1_index, g2_index))
     const_parameter_dict = {
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
@@ -201,39 +119,12 @@ def parameter_generator_parallel(
     return iter_parameter_list
 
 
-def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
-    output_direct = "{}/model3".format(total_output_direct)
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 100}
-
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.5
-    ternary_sigma = 0.15
+def dynamic_range_model34(
+        model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
+        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
+        total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
+        **other_parameters):
     sample = True
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test_running:
-        total_point_num = int(3e3)
-        # point_interval_list = [30, 30, 12, 12, 80]
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        # point_interval_list = [10, 10, 4, 4, 20]
-        ternary_resolution = int(2 ** 8)
     point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
 
     if sample:
@@ -249,305 +140,7 @@ def dynamic_range_model3(model_mid_data_dict: dict, total_output_direct, paralle
         free_flux_value_list = it.product(*free_fluxes_sequence_list)
         list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
 
-    balance_list, mid_constraint_list = model3_construction(model_mid_data_dict)
-    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
-        balance_list, complete_flux_dict)
-    (
-        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
-        optimal_obj_value) = common_functions.mid_constraint_constructor(
-        mid_constraint_list, complete_flux_dict)
-
-    # iter_parameter_list = []
-    chunk_size = 1000
-    iter_parameter_list = parameter_generator_parallel(
-        constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
-        chunk_size)
-
-    const_parameter_dict = {
-        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
-        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-
-        'optimization_repeat_time': optimization_repeat_time,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
-        'free_fluxes_name_list': free_fluxes_name_list,
-
-        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
-    }
-    return const_parameter_dict, iter_parameter_list
-
-
-def dynamic_range_model4(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
-    output_direct = "{}/model4".format(total_output_direct)
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(11)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
-    fcirc_glc_max = 250
-
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.4
-    ternary_sigma = 0.15
-    sample = False
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test_running:
-        total_point_num = int(3e3)
-        # point_interval_list = [50, 50, 20, 20, 100]
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        # point_interval_list = [25, 25, 5, 5, 25]
-        ternary_resolution = int(2 ** 8)
-    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
-
-    if sample:
-        free_flux_raw_list = [
-            np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
-        for row_index, _ in enumerate(free_fluxes_range_list):
-            np.random.shuffle(free_flux_raw_list[row_index])
-        free_flux_value_list = np.array(free_flux_raw_list).T
-        list_length = total_point_num
-    else:
-        free_fluxes_sequence_list = [
-            np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
-        free_flux_value_list = it.product(*free_fluxes_sequence_list)
-        list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
-
-    balance_list, mid_constraint_list = model4_construction(model_mid_data_dict)
-    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
-        balance_list, complete_flux_dict)
-    (
-        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
-        optimal_obj_value) = common_functions.mid_constraint_constructor(
-        mid_constraint_list, complete_flux_dict)
-
-    # iter_parameter_list = []
-    chunk_size = 1000
-    iter_parameter_list = parameter_generator_parallel(
-        constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
-        chunk_size)
-
-    const_parameter_dict = {
-        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
-        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-
-        'optimization_repeat_time': optimization_repeat_time,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
-        'free_fluxes_name_list': free_fluxes_name_list,
-
-        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
-    }
-    return const_parameter_dict, iter_parameter_list
-
-
-def dynamic_range_model5(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
-    output_direct = "{}/model5".format(total_output_direct)
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['H{}'.format(i + 1) for i in range(9)] + ['Fcirc_lac', 'Fcirc_glc']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'F10': 100, 'Fcirc_lac': 374.4, 'Fcirc_glc': 150.9}
-
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.4
-    ternary_sigma = 0.15
-    sample = False
-
-    free_fluxes_name_list = ['F1', 'G2', 'H1', 'F3', 'G4']
-    free_fluxes_range_list = [
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test_running:
-        total_point_num = int(3e3)
-        # point_interval_list = [50, 50, 20, 20, 100]
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        # point_interval_list = [25, 25, 5, 5, 25]
-        ternary_resolution = int(2 ** 8)
-    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
-
-    if sample:
-        free_flux_raw_list = [
-            np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
-        for row_index, _ in enumerate(free_fluxes_range_list):
-            np.random.shuffle(free_flux_raw_list[row_index])
-        free_flux_value_list = np.array(free_flux_raw_list).T
-        list_length = total_point_num
-    else:
-        free_fluxes_sequence_list = [
-            np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
-        free_flux_value_list = it.product(*free_fluxes_sequence_list)
-        list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
-
-    balance_list, mid_constraint_list = model5_construction(model_mid_data_dict)
-    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
-        balance_list, complete_flux_dict)
-    (
-        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
-        optimal_obj_value) = common_functions.mid_constraint_constructor(
-        mid_constraint_list, complete_flux_dict)
-
-    # iter_parameter_list = []
-    chunk_size = 1000
-    iter_parameter_list = parameter_generator_parallel(
-        constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
-        chunk_size)
-
-    const_parameter_dict = {
-        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
-        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-
-        'optimization_repeat_time': optimization_repeat_time,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
-        'free_fluxes_name_list': free_fluxes_name_list,
-
-        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
-    }
-    return const_parameter_dict, iter_parameter_list
-
-
-def dynamic_range_model6(model_mid_data_dict: dict, total_output_direct, **other_parameters):
-    output_direct = "{}/model6".format(total_output_direct)
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fin', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'F10': 50, 'Fcirc_lac': 600}
-
-    # f1_range = [1, 250]
-    # g2_range = [1, 250]
-    min_flux_value = 1
-    max_flux_value = 8000
-    max_free_flux_value = 300
-    optimization_repeat_time = 10
-    obj_tolerance = 0.3
-    f1_range = [min_flux_value, max_free_flux_value]
-    g2_range = [min_flux_value, max_free_flux_value]
-
-    if test_running:
-        f1_num = 101
-        f1_display_interv = 100
-        g2_num = 101
-        g2_display_interv = 100
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
-
-    balance_list, mid_constraint_list = model6_construction(model_mid_data_dict)
-    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
-        balance_list, complete_flux_dict)
-    (
-        substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
-        optimal_obj_value) = common_functions.mid_constraint_constructor(
-        mid_constraint_list, complete_flux_dict)
-
-    iter_parameter_list = []
-    matrix_loc_list = []
-    for f1_index, f1 in enumerate(f1_free_flux):
-        for g2_index, g2 in enumerate(g2_free_flux):
-            new_constant_flux_dict = dict(constant_flux_dict)
-            new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
-            var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
-            iter_parameter_list.append(var_parameter_dict)
-            matrix_loc_list.append((f1_index, g2_index))
-    const_parameter_dict = {
-        'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
-        'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-        'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-
-        'optimization_repeat_time': optimization_repeat_time,
-        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
-    }
-    return const_parameter_dict, iter_parameter_list
-
-
-def dynamic_range_model7(model_mid_data_dict: dict, total_output_direct, parallel_num, **other_parameters):
-    output_direct = "{}/model7".format(total_output_direct)
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'F12': 100, 'Fcirc_lac': 400, 'Fcirc_pyr': 200}
-    fcirc_glc_max = 300
-
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.4
-    ternary_sigma = 0.15
-    sample = False
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test_running:
-        total_point_num = int(3e3)
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        ternary_resolution = int(2 ** 8)
-    point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
-
-    if sample:
-        free_flux_raw_list = [
-            np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
-        for row_index, _ in enumerate(free_fluxes_range_list):
-            np.random.shuffle(free_flux_raw_list[row_index])
-        free_flux_value_list = np.array(free_flux_raw_list).T
-        list_length = total_point_num
-    else:
-        free_fluxes_sequence_list = [
-            np.linspace(*flux_range, point_num_each_axis) for flux_range in free_fluxes_range_list]
-        free_flux_value_list = it.product(*free_fluxes_sequence_list)
-        list_length = np.prod([len(sequence) for sequence in free_fluxes_sequence_list])
-
-    balance_list, mid_constraint_list = model7_construction(model_mid_data_dict)
+    balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
         balance_list, complete_flux_dict)
     (
@@ -1264,6 +857,7 @@ def final_result_processing_and_plotting_model34(
     common_functions.plot_violin_distribution(
         {'normal': np.array(obj_diff_value_list)},
         {'normal': color_set.blue},
+        cutoff=obj_tolerance,
         save_path="{}/objective_function_diff_violin.png".format(output_direct))
     # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
     # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
@@ -1320,6 +914,7 @@ def final_result_processing_and_plotting_model5(
     common_functions.plot_violin_distribution(
         {'normal': np.array(obj_diff_value_list)},
         {'normal': color_set.blue},
+        cutoff=obj_tolerance,
         save_path="{}/objective_function_diff_violin.png".format(output_direct))
 
     if test_running:
@@ -1329,23 +924,59 @@ def final_result_processing_and_plotting_model5(
 def model1_parameters():
     model_name = "model1"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
+
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model1
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_result_processing_and_plotting_model12
     model_construction_func = model1_construction
+    parameter_construction_func = dynamic_range_model12
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fcirc_glc', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.1
+    f1_range = [1, 150]
+    g2_range = [1, 150]
+    if test_running:
+        f1_num = 51
+        f1_display_interv = 50
+        g2_num = 51
+        g2_display_interv = 50
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'f1_num': f1_num,
+        'f1_range': f1_range,
+        'f1_display_interv': f1_display_interv,
+        'g2_num': g2_num,
+        'g2_range': g2_range,
+        'g2_display_interv': g2_display_interv,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations
@@ -1356,23 +987,61 @@ def model1_parameters():
 def model2_parameters():
     model_name = "model2"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model2
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_result_processing_and_plotting_model12
     model_construction_func = model2_construction
+    parameter_construction_func = dynamic_range_model12
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(9)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fin', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500}
+
+    min_flux_value = 1
+    max_flux_value = 8000
+    max_free_flux_value = 250
+    optimization_repeat_time = 10
+    obj_tolerance = 0.25
+    f1_range = [min_flux_value, max_free_flux_value]
+    g2_range = [min_flux_value, max_free_flux_value]
+
+    if test_running:
+        f1_num = 101
+        f1_display_interv = 100
+        g2_num = 101
+        g2_display_interv = 100
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'f1_num': f1_num,
+        'f1_range': f1_range,
+        'f1_display_interv': f1_display_interv,
+        'g2_num': g2_num,
+        'g2_range': g2_range,
+        'g2_display_interv': g2_display_interv,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations
@@ -1383,23 +1052,65 @@ def model2_parameters():
 def model3_parameters():
     model_name = "model3"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model3
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_result_processing_and_plotting_model34
     model_construction_func = model3_construction
+    parameter_construction_func = dynamic_range_model34
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
+                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 100}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.1
+    ternary_sigma = 0.15
+
+    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+
+    if test_running:
+        total_point_num = int(3e3)
+        # point_interval_list = [30, 30, 12, 12, 80]
+        ternary_resolution = int(2 ** 7)
+    else:
+        total_point_num = int(3e6)
+        # point_interval_list = [10, 10, 4, 4, 20]
+        ternary_resolution = int(2 ** 8)
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'total_point_num': total_point_num,
+        'free_fluxes_name_list': free_fluxes_name_list,
+        'free_fluxes_range_list': free_fluxes_range_list,
+        'ternary_sigma': ternary_sigma,
+        'ternary_resolution': ternary_resolution,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations
@@ -1410,23 +1121,65 @@ def model3_parameters():
 def model4_parameters():
     model_name = "model4"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model4
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_result_processing_and_plotting_model34
     model_construction_func = model4_construction
+    parameter_construction_func = dynamic_range_model34
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(11)] + ['G{}'.format(i + 1) for i in range(11)] + \
+                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
+    fcirc_glc_max = 250
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.25
+    ternary_sigma = 0.15
+
+    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+    if test_running:
+        total_point_num = int(3e3)
+        # point_interval_list = [50, 50, 20, 20, 100]
+        ternary_resolution = int(2 ** 7)
+    else:
+        total_point_num = int(3e6)
+        # point_interval_list = [25, 25, 5, 5, 25]
+        ternary_resolution = int(2 ** 8)
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'total_point_num': total_point_num,
+        'free_fluxes_name_list': free_fluxes_name_list,
+        'free_fluxes_range_list': free_fluxes_range_list,
+        'ternary_sigma': ternary_sigma,
+        'ternary_resolution': ternary_resolution,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations
@@ -1437,6 +1190,7 @@ def model4_parameters():
 def model5_parameters():
     model_name = "model5"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1444,17 +1198,58 @@ def model5_parameters():
         'sink2_tissue_marker': constant_set.muscle_marker}
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model5, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model5
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model5
     hook_after_all_iterations = final_result_processing_and_plotting_model5
     model_construction_func = model5_construction
+    parameter_construction_func = dynamic_range_model34
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['H{}'.format(i + 1) for i in range(9)] + ['Fcirc_lac', 'Fcirc_glc']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'F10': 100, 'Fcirc_lac': 374.4, 'Fcirc_glc': 150.9}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.15
+    ternary_sigma = 0.15
+
+    free_fluxes_name_list = ['F1', 'G2', 'H1', 'F3', 'G4']
+    free_fluxes_range_list = [
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+
+    if test_running:
+        total_point_num = int(3e3)
+        # point_interval_list = [50, 50, 20, 20, 100]
+        ternary_resolution = int(2 ** 7)
+    else:
+        total_point_num = int(3e6)
+        # point_interval_list = [25, 25, 5, 5, 25]
+        ternary_resolution = int(2 ** 8)
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'total_point_num': total_point_num,
+        'free_fluxes_name_list': free_fluxes_name_list,
+        'free_fluxes_range_list': free_fluxes_range_list,
+        'ternary_sigma': ternary_sigma,
+        'ternary_resolution': ternary_resolution,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations
@@ -1465,22 +1260,61 @@ def model5_parameters():
 def model6_parameters():
     model_name = "model6"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
+
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model6
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_result_processing_and_plotting_model12
     model_construction_func = model6_construction
+    parameter_construction_func = dynamic_range_model12
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fin', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'F10': 100, 'Fcirc_lac': 400}
+
+    min_flux_value = 1
+    max_flux_value = 8000
+    max_free_flux_value = 300
+    optimization_repeat_time = 10
+    obj_tolerance = 0.25
+    f1_range = [min_flux_value, max_free_flux_value]
+    g2_range = [min_flux_value, max_free_flux_value]
+
+    if test_running:
+        f1_num = 101
+        f1_display_interv = 100
+        g2_num = 101
+        g2_display_interv = 100
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'f1_num': f1_num,
+        'f1_range': f1_range,
+        'f1_display_interv': f1_display_interv,
+        'g2_num': g2_num,
+        'g2_range': g2_range,
+        'g2_display_interv': g2_display_interv,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations
@@ -1491,22 +1325,64 @@ def model6_parameters():
 def model7_parameters():
     model_name = "model7"
     total_output_direct = "new_models"
+    output_direct = "{}/{}".format(total_output_direct, model_name)
+
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
-    parameter_construction_func = dynamic_range_model7
-    parameter_construction_kwargs = {'total_output_direct': total_output_direct}
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_result_processing_and_plotting_model34
     model_construction_func = model7_construction
+    parameter_construction_func = dynamic_range_model34
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
+                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fin': 111.1, 'F12': 100, 'Fcirc_lac': 400, 'Fcirc_pyr': 70}
+    fcirc_glc_max = 200
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.25
+    ternary_sigma = 0.15
+
+    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, fcirc_glc_max],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+
+    if test_running:
+        total_point_num = int(3e3)
+        ternary_resolution = int(2 ** 7)
+    else:
+        total_point_num = int(3e6)
+        ternary_resolution = int(2 ** 8)
 
     output_parameter_dict = {
         'model_name': model_name,
+        'output_direct': output_direct,
         'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'total_point_num': total_point_num,
+        'free_fluxes_name_list': free_fluxes_name_list,
+        'free_fluxes_range_list': free_fluxes_range_list,
+        'ternary_sigma': ternary_sigma,
+        'ternary_resolution': ternary_resolution,
+
         'parameter_construction_func': parameter_construction_func,
-        'parameter_construction_kwargs': parameter_construction_kwargs,
         'model_construction_func': model_construction_func,
         'hook_in_each_iteration': hook_in_each_iteration,
         'hook_after_all_iterations': hook_after_all_iterations

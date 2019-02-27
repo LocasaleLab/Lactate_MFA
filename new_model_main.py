@@ -281,7 +281,8 @@ def calculate_one_tissue_tca_contribution(input_net_flux_list):
     return real_flux_list
 
 
-def result_evaluation(result_dict, constant_dict, mid_constraint_list, target_diff, output_direct):
+def result_evaluation(
+        result_dict, constant_dict, mid_constraint_list, target_diff, output_direct, common_name):
     flux_value_dict = dict(result_dict)
     flux_value_dict.update(constant_dict)
     for mid_constraint_dict in mid_constraint_list:
@@ -303,7 +304,7 @@ def result_evaluation(result_dict, constant_dict, mid_constraint_list, target_di
         predicted_label = 'Calculated MID'
         plot_data_dict = {experimental_label: target_vector, predicted_label: calculate_vector}
         plot_color_dict = {experimental_label: color_set.blue, predicted_label: color_set.orange}
-        save_path = "{}/compare_bar_{}.png".format(output_direct, name)
+        save_path = "{}/{}_{}.png".format(output_direct, common_name, name)
         title = "{}_diff_{:.2f}".format(name, target_diff)
         plot_raw_mid_bar(plot_data_dict, plot_color_dict, title, save_path)
 
@@ -339,7 +340,7 @@ def plot_raw_mid_bar(data_dict, color_dict=None, title=None, save_path=None):
     ax.set_xticklabels([])
     ax.set_yticks(np.arange(0, 1.1, 0.2))
     ax.set_yticklabels([])
-    ax.legend()
+    # ax.legend()
     if title:
         ax.set_title(title)
     if save_path:
@@ -364,7 +365,7 @@ def plot_heat_map(data_matrix, x_free_variable, y_free_variable, cmap=None, cbar
         fig.savefig(save_path, dpi=fig.dpi)
 
 
-def plot_violin_distribution(data_dict, color_dict=None, save_path=None):
+def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, save_path=None):
     fig, ax = plt.subplots()
     data_list_for_violin = data_dict.values()
     tissue_label_list = data_dict.keys()
@@ -380,7 +381,8 @@ def plot_violin_distribution(data_dict, color_dict=None, save_path=None):
         for pc, color in zip(parts['bodies'], color_list):
             pc.set_facecolor(color)
             pc.set_alpha(color_set.alpha_value)
-    ax.axhline(0.5, linestyle='--', color=color_set.orange)
+    if cutoff is not None:
+        ax.axhline(cutoff, linestyle='--', color=color_set.orange)
     ax.set_ylim([-0.1, 1.1])
     ax.set_xticks(x_axis_position)
     ax.set_xticklabels(tissue_label_list)
@@ -484,8 +486,8 @@ def model_solver_single(
 
 
 def scanning_slsqp_parallel(
-        model_mid_data_dict, parameter_construction_func, parameter_construction_kwargs,
-        hook_in_each_iteration, hook_after_all_iterations, **other_parameters):
+        model_mid_data_dict, parameter_construction_func, hook_in_each_iteration,
+        hook_after_all_iterations, **other_parameters):
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
     # result = pool.map_async(task, [(x, q) for x in range(10)])
@@ -498,7 +500,7 @@ def scanning_slsqp_parallel(
         parallel_num = 12
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
-        model_mid_data_dict, parallel_num=parallel_num, **parameter_construction_kwargs)
+        model_mid_data_dict, parallel_num=parallel_num, **other_parameters)
 
     with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
@@ -525,7 +527,8 @@ def scanning_slsqp_parallel(
 #     self.success = success
 #     self.minimal_obj_value = minimal_obj_value
 def fitting_result_display(
-        model_mid_data_dict, model_name, model_construction_func, **other_parameters):
+        model_mid_data_dict, model_name, model_construction_func, obj_tolerance,
+        **other_parameters):
     server_data = False
     total_output_direct = "new_models"
 
@@ -541,13 +544,16 @@ def fitting_result_display(
     result_list: list = input_data_dict['result_list']
     target_result_dict = {}
     target_obj_diff = 9999
+    # common_name = "compare_bar_min"
+    common_name = "compare_bar_cutoff"
     for result_object in result_list:
         obj_diff = result_object.obj_value - result_object.minimal_obj_value
-        if 0 < obj_diff < target_obj_diff:
+        # if 0 < obj_diff < target_obj_diff:
+        if abs(obj_diff - obj_tolerance) < abs(target_obj_diff - obj_tolerance):
             target_result_dict = result_object.result_dict
             target_obj_diff = obj_diff
     if len(target_result_dict) != 0:
-        result_evaluation(target_result_dict, {}, mid_constraint_list, target_obj_diff, output_direct)
+        result_evaluation(target_result_dict, {}, mid_constraint_list, target_obj_diff, output_direct, common_name)
         plt.show()
 
 

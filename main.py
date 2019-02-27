@@ -1235,9 +1235,9 @@ def main():
     # solve_parameter_sensitivity_model3(data_collection, label_list)
     # solve_net_contribution_fluxes_model3(data_collection, label_list)
     # glucose_contribution_violin_model3(data_collection, label_list)
-    solve_net_contribution_fluxes_model4(data_collection, label_list)
+    # solve_net_contribution_fluxes_model4(data_collection, label_list)
     # solve_param_sensitivity(data_collection, label_list, solve_one_case_model3)
-    # variation_analysis_model3(data_collection, label_list)
+    variation_analysis_model3(data_collection, label_list)
     # variation_analysis_model4(data_collection, label_list)
     # raw_data_plotting(data_collection, label_list)
 
