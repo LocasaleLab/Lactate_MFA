@@ -302,16 +302,16 @@ def violin_test():
 # object function: (Ax - b) ^ 2 = x^T (A^T @ A) x - 2 (A^T @ b)^T @ x + b^T @ b
 # standard form: min 1/2 x^T @ P @ x + q^T x, st G @ x <= h, A @ x = b
 # P = A^T @ A, q = A^T @ b, G = -1 * I, h = 0, A = [1, 1, 1,... 1], b = 1
-def solve_multi_ratios(source_vector_list, target_vector):
+def solve_multi_ratios(source_vector_list, target_vector, ratio_lb, ratio_ub):
     var_num = len(source_vector_list)
     cvx_matrix = cvxopt.matrix
     raw_matrix_a = np.array(source_vector_list, dtype='float64').transpose()
     raw_vector_b = target_vector.reshape([-1, 1])
     matrix_p = cvx_matrix(raw_matrix_a.T @ raw_matrix_a)
-    vector_q = cvx_matrix(raw_matrix_a.T @ raw_vector_b)
+    vector_q = -cvx_matrix(raw_matrix_a.T @ raw_vector_b)
 
-    matrix_g = cvx_matrix(-1 * np.identity(var_num))
-    matrix_h = cvx_matrix(np.zeros([var_num, 1]))
+    matrix_g = cvx_matrix(np.vstack([-1 * np.identity(var_num), np.identity(var_num)]))
+    matrix_h = cvx_matrix(np.vstack([np.ones([var_num, 1]) * ratio_lb, np.ones([var_num, 1]) * ratio_ub]))
     matrix_a = cvx_matrix(np.ones([1, var_num]))
     matrix_b = cvx_matrix(np.ones([1, 1]))
 
@@ -321,9 +321,11 @@ def solve_multi_ratios(source_vector_list, target_vector):
 
 
 def cvxopt_test():
-    test_source_vector_list = [np.array([1, 0, 0]), np.array([0, 1, 0])]
-    test_target_vector = np.array([0.7, 0.3, 0])
-    result = solve_multi_ratios(test_source_vector_list, test_target_vector)
+    test_source_vector_list = [np.array([0.9, 0.1, 0]), np.array([0.1, 0.9, 0])]
+    test_target_vector = np.array([1, 0, 0])
+    ratio_lb = 0.1
+    ratio_ub = 0.9
+    result = solve_multi_ratios(test_source_vector_list, test_target_vector, ratio_lb, ratio_ub)
     print(result)
 
 
@@ -588,13 +590,13 @@ def main():
     # plot_test()
     # hmm_test()
     # violin_test()
-    # cvxopt_test()
+    cvxopt_test()
     # convex_test()
     # multiprocess_test()
     # ternary_function_test()
     # ternary_test()
     # shuffle_test()
-    read_test()
+    # read_test()
 
 
 if __name__ == '__main__':

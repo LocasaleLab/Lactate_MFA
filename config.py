@@ -31,3 +31,4 @@ class Constants(object):
     target_label = 'target'
     c13_ratio = 0.01109
     eps_for_log = 1e-10
+    new_output_direct = "new_models"
