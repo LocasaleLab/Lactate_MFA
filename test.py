@@ -12,6 +12,11 @@ from matplotlib import cm
 import re
 import cvxopt
 
+import model_specific_functions
+import config
+
+color_set = config.Color()
+
 
 class Result(object):
     def __init__(self, result_dict: dict, obj_value: float, success: bool, minimal_obj_value: float):
@@ -161,6 +166,93 @@ def scarlett_function():
     plt.show()
 
 
+def dynamic_range_function_record():
+    model_name = "model1"
+    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+
+    hook_in_each_iteration = result_processing_each_iteration_model12
+    hook_after_all_iterations = final_result_processing_and_plotting_model12
+    model_construction_func = model1_construction
+    parameter_construction_func = dynamic_range_model12
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fcirc_glc', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.1
+    f1_range = [1, 150]
+    g2_range = [1, 150]
+    if test_running:
+        f1_num = 51
+        f1_display_interv = 50
+        g2_num = 51
+        g2_display_interv = 50
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
+
+    # model12
+    output_parameter_dict = {
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'f1_num': f1_num,
+        'f1_range': f1_range,
+        'f1_display_interv': f1_display_interv,
+        'g2_num': g2_num,
+        'g2_range': g2_range,
+        'g2_display_interv': g2_display_interv,
+
+        'parameter_construction_func': parameter_construction_func,
+        'model_construction_func': model_construction_func,
+        'hook_in_each_iteration': hook_in_each_iteration,
+        'hook_after_all_iterations': hook_after_all_iterations
+    }
+
+    # model34
+    output_parameter_dict = {
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'model_mid_data_dict': model_mid_data_dict,
+        'constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict,
+        'optimization_repeat_time': optimization_repeat_time,
+        'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value,
+        'obj_tolerance': obj_tolerance,
+
+        'total_point_num': total_point_num,
+        'free_fluxes_name_list': free_fluxes_name_list,
+        'free_fluxes_range_list': free_fluxes_range_list,
+        'ternary_sigma': ternary_sigma,
+        'ternary_resolution': ternary_resolution,
+
+        'parameter_construction_func': parameter_construction_func,
+        'model_construction_func': model_construction_func,
+        'hook_in_each_iteration': hook_in_each_iteration,
+        'hook_after_all_iterations': hook_after_all_iterations
+    }
+    return output_parameter_dict
+
+
 def plot_test():
     brain_marker = 'Br'
     heart_marker = 'Ht'
@@ -294,7 +386,8 @@ def violin_test():
         'b': np.array([21, 113, 177]) / 255,
         'c': np.array([251, 138, 68]) / 255
     }
-    violin_plot(data_dict, color_dict)
+    # violin_plot(data_dict, color_dict)
+    violin_plot({'c': data_dict['c']}, {'c': color_set.purple})
     plt.show()
 
 
@@ -583,20 +676,49 @@ def read_test():
     # print(valid_matrix.size)
 
 
+def read_test2():
+    data_dict_file_path = "C:/Data/PhD/LocasaleLab/Scripts/lactate_exchange/new_models/model1_parameter_sensitivity"
+    data_dict_file_path = "{}/output_data_dict.gz".format(data_dict_file_path)
+    with gzip.open(data_dict_file_path, 'rb') as f_in:
+        data_dict = pickle.load(f_in)
+    well_fit_glucose_contri_dict = data_dict['well_fit_glucose_contri_dict']
+    print(len(well_fit_glucose_contri_dict['mid']))
+    sample_type_list = ['mid', 'Fcirc_glc', 'Fcirc_lac', 'F10']
+    well_fit_glucose_contri_array_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+    well_fit_median_contri_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+    for sample_type, sample_contri_list in well_fit_glucose_contri_dict.items():
+        for sample_index, contri_list in enumerate(sample_contri_list):
+            new_array = np.array(contri_list)
+            if len(new_array) == 0:
+                continue
+            well_fit_glucose_contri_array_dict[sample_type].append(new_array)
+            well_fit_median_contri_dict[sample_type].append(np.median(new_array))
+        print(len(well_fit_median_contri_dict[sample_type]))
+    model_specific_functions.common_functions.plot_violin_distribution(
+        {'mid': well_fit_median_contri_dict['mid']},
+        {'mid': color_set.purple},
+        # save_path="{}/glucose_contribution_violin_parameter_sensitivity_{}.png".format(
+        #     output_direct, sample_type)
+    )
+    plt.show()
+
+
 def main():
     # emoji_test()
     # surrounding_circle()
     # scarlett_function()
     # plot_test()
     # hmm_test()
-    # violin_test()
-    cvxopt_test()
+    violin_test()
+    # cvxopt_test()
     # convex_test()
     # multiprocess_test()
     # ternary_function_test()
     # ternary_test()
     # shuffle_test()
-    # read_test()
+    # read_test2()
 
 
 if __name__ == '__main__':

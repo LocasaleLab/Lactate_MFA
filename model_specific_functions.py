@@ -96,7 +96,7 @@ def dynamic_range_model12(
     return const_parameter_dict, iter_parameter_list
 
 
-def all_tissue_model12(
+def all_tissue_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
@@ -106,7 +106,6 @@ def all_tissue_model12(
     g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
 
     iter_parameter_list = []
-    matrix_loc_list = []
     for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
         balance_list, mid_constraint_list = model_construction_func(specific_tissue_mid_data_dict)
         flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
@@ -128,14 +127,98 @@ def all_tissue_model12(
                     'constant_flux_dict': new_constant_flux_dict,
                     'label': {'tissue': tissue_name, 'matrix_loc': (f1_index, g2_index)}}
                 iter_parameter_list.append(var_parameter_dict)
-                # matrix_loc_list.append((f1_index, g2_index))
 
     const_parameter_dict = {
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
         'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
 
         'optimization_repeat_time': optimization_repeat_time,
-        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
+    }
+    return const_parameter_dict, iter_parameter_list
+
+
+def parameter_sensitivity_model1(
+        model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
+        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, sigma_dict,
+        parameter_sampling_num, deviation_factor_dict,
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
+        **other_parameters):
+    def construct_iter_parameter_list(
+            _f1_free_flux, _g2_free_flux, _iter_parameter_list, _current_mid_data_dict, _constant_flux_dict,
+            _sample_type, _sample_index):
+        balance_list, mid_constraint_list = model_construction_func(_current_mid_data_dict)
+        flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
+            balance_list, complete_flux_dict)
+        (
+            substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
+            optimal_obj_value) = common_functions.mid_constraint_constructor(
+            mid_constraint_list, complete_flux_dict)
+        for f1_index, f1 in enumerate(_f1_free_flux):
+            for g2_index, g2 in enumerate(_g2_free_flux):
+                new_constant_flux_dict = dict(_constant_flux_dict)
+                new_constant_flux_dict.update({_f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2})
+                var_parameter_dict = {
+                    'flux_balance_matrix': flux_balance_matrix,
+                    'flux_balance_constant_vector': flux_balance_constant_vector,
+                    'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+                    'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+                    'constant_flux_dict': new_constant_flux_dict,
+                    'label': {
+                        'sample_type': _sample_type, 'sample_index': _sample_index,
+                        # 'matrix_loc': (f1_index, g2_index)
+                    }}
+                _iter_parameter_list.append(var_parameter_dict)
+
+    def perturb_array(original_array, sigma, lower_bias, min_deviation_factor, max_deviation_factor):
+        if isinstance(original_array, int) or isinstance(original_array, float):
+            array_size = 1
+        else:
+            array_size = len(original_array)
+        absolute_deviation = np.clip(
+            np.abs(np.random.normal(scale=sigma, size=array_size)), min_deviation_factor, max_deviation_factor)
+        random_sign = np.power(-1, np.random.randint(low=0, high=2, size=len(absolute_deviation)))
+        deviation = absolute_deviation * random_sign + 1
+        new_array = original_array * deviation + lower_bias
+        return new_array
+
+    def mid_perturbation(mid_data_dict, sigma):
+        new_mid_data_dict = {}
+        for mid_title, mid_array in mid_data_dict.items():
+            new_array = perturb_array(
+                mid_array, sigma, constant_set.eps_of_mid, *deviation_factor_dict['mid'])
+            new_mid_data_dict[mid_title] = new_array / np.sum(new_array)
+        return new_mid_data_dict
+
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    mid_sigma = sigma_dict['mid']
+    flux_sigma = sigma_dict['flux']
+    iter_parameter_list = []
+    for sample_index in range(parameter_sampling_num):
+        current_mid_data_dict = mid_perturbation(model_mid_data_dict, mid_sigma)
+        construct_iter_parameter_list(
+            f1_free_flux, g2_free_flux, iter_parameter_list, current_mid_data_dict, constant_flux_dict,
+            'mid', sample_index)
+    for constant_flux_name, constant_flux_value in constant_flux_dict.items():
+        for sample_index in range(parameter_sampling_num):
+            current_constant_flux_dict = dict(constant_flux_dict)
+            current_constant_flux_dict[constant_flux_name] = perturb_array(
+                constant_flux_value, flux_sigma, 0, *deviation_factor_dict['flux'])
+            construct_iter_parameter_list(
+                f1_free_flux, g2_free_flux, iter_parameter_list, model_mid_data_dict, current_constant_flux_dict,
+                constant_flux_name, sample_index)
+    sample_type_list = ['mid', *constant_flux_dict.keys()]
+
+    const_parameter_dict = {
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value, 'sample_type_list': sample_type_list,
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct
     }
     return const_parameter_dict, iter_parameter_list
@@ -293,11 +376,10 @@ def mid_data_loader_linear_model12(
             data_collection_dict, 'glucose', label_list, constant_set.plasma_marker, mean=False, split=3),
     }
 
-    eps_of_mid = 1e-5
     for name, mid_vector in mid_data_dict.items():
         if abs(np.sum(mid_vector) - mouse_num) > 0.001:
             raise ValueError('Sum of MID is not 1: {}'.format(name))
-        mid_data_dict[name] += eps_of_mid
+        mid_data_dict[name] += constant_set.eps_of_mid
         mid_data_dict[name] /= np.sum(mid_data_dict[name])
     return mid_data_dict
 
@@ -337,11 +419,10 @@ def mid_data_loader_model1234(
             data_collection_dict, 'glucose', label_list, constant_set.plasma_marker, mouse_id_list, split=3),
     }
 
-    eps_of_mid = 1e-5
     for name, mid_vector in mid_data_dict.items():
         if abs(np.sum(mid_vector) - 1) > 0.001:
             raise ValueError('Sum of MID is not 1: {}'.format(name))
-        mid_data_dict[name] += eps_of_mid
+        mid_data_dict[name] += constant_set.eps_of_mid
         mid_data_dict[name] /= np.sum(mid_data_dict[name])
     return mid_data_dict
 
@@ -401,11 +482,10 @@ def mid_data_loader_model5(
             data_collection_dict, 'glucose', label_list, constant_set.plasma_marker, mouse_id_list, split=3),
     }
 
-    eps_of_mid = 1e-5
     for name, mid_vector in mid_data_dict.items():
         if abs(np.sum(mid_vector) - 1) > 0.001:
             raise ValueError('Sum of MID is not 1: {}'.format(name))
-        mid_data_dict[name] += eps_of_mid
+        mid_data_dict[name] += constant_set.eps_of_mid
         mid_data_dict[name] /= np.sum(mid_data_dict[name])
     return mid_data_dict
 
@@ -901,7 +981,7 @@ def model1_print_result(result_dict, constant_flux_dict):
     print("Constants:\n{}".format("\n".join(const_string_list)))
 
 
-def final_result_processing_and_plotting_linear_model12(
+def final_processing_dynamic_range_linear_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
     g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
@@ -945,7 +1025,7 @@ def final_result_processing_and_plotting_linear_model12(
         plt.show()
 
 
-def final_result_processing_and_plotting_model12(
+def final_processing_dynamic_range_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
     g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
@@ -1007,7 +1087,7 @@ def final_result_processing_and_plotting_model12(
         plt.show()
 
 
-def final_result_processing_and_plotting_model34(
+def final_processing_dynamic_range_model34(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     output_direct = const_parameter_dict['output_direct']
     free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
@@ -1064,7 +1144,7 @@ def final_result_processing_and_plotting_model34(
         plt.show()
 
 
-def final_result_processing_and_plotting_model5(
+def final_processing_dynamic_range_model5(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     output_direct = const_parameter_dict['output_direct']
     free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
@@ -1119,11 +1199,10 @@ def final_result_processing_and_plotting_model5(
         plt.show()
 
 
-def final_result_processing_and_plotting_all_tissue_model12(
+def final_processing_all_tissue_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
     g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
-    # matrix_loc_list = const_parameter_dict['matrix_loc_list']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     tissue_name_list = const_parameter_dict['tissue_name_list']
@@ -1131,14 +1210,10 @@ def final_result_processing_and_plotting_all_tissue_model12(
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     valid_matrix_dict = {
         tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-    # glucose_contri_matrix = np.zeros_like(valid_matrix)
     glucose_contri_matrix_dict = {
         tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-    # objective_function_matrix = np.zeros_like(valid_matrix)
     objective_function_matrix_dict = {
         tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-
-    # well_fit_glucose_contri_list = []
     well_fit_glucose_contri_dict = {
         tissue_name: [] for tissue_name in tissue_name_list}
 
@@ -1203,6 +1278,98 @@ def final_result_processing_and_plotting_all_tissue_model12(
         plt.show()
 
 
+def final_processing_parameter_sensitivity_model1(
+        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
+    f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
+    g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
+    output_direct = const_parameter_dict['output_direct']
+    obj_tolerance = const_parameter_dict['obj_tolerance']
+    sample_type_list = const_parameter_dict['sample_type_list']
+
+    # valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
+    # valid_matrix_dict = {
+    #     sample_type: np.zeros_like(valid_matrix) for sample_type in sample_type_list}
+    # glucose_contri_matrix_dict = {
+    #     sample_type: np.zeros_like(valid_matrix) for sample_type in sample_type_list}
+    objective_function_list_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+    objective_function_median_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+    well_fit_glucose_contri_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+    well_fit_glucose_contri_array_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+    well_fit_median_contri_dict = {
+        sample_type: [] for sample_type in sample_type_list}
+
+    for solver_result, processed_dict in zip(result_list, processed_result_list):
+        sample_type = solver_result.label['sample_type']
+        sample_index = solver_result.label['sample_index']
+        # matrix_loc = solver_result.label['matrix_loc']
+        if processed_dict['valid']:
+            if sample_index >= len(objective_function_list_dict[sample_type]):
+                objective_function_list_dict[sample_type].append([])
+                well_fit_glucose_contri_dict[sample_type].append([])
+            objective_function_list_dict[sample_type][sample_index].append(processed_dict['obj_diff'])
+            if processed_dict['obj_diff'] < obj_tolerance:
+                well_fit_glucose_contri_dict[sample_type][sample_index].append(
+                    processed_dict['glucose_contribution'])
+
+    for sample_type, sample_obj_list in objective_function_list_dict.items():
+        for sample_index, obj_list in enumerate(sample_obj_list):
+            objective_function_median_dict[sample_type].append(np.median(obj_list))
+
+    for sample_type, sample_contri_list in well_fit_glucose_contri_dict.items():
+        for sample_index, contri_list in enumerate(sample_contri_list):
+            if len(contri_list) == 0:
+                continue
+            new_array = np.array(contri_list)
+            well_fit_glucose_contri_array_dict[sample_type].append(new_array)
+            well_fit_median_contri_dict[sample_type].append(np.median(new_array))
+
+    # for sample_type in sample_type_list:
+    #     common_functions.plot_heat_map(
+    #         valid_matrix_dict[tissue_name], g2_free_flux, f1_free_flux,
+    #         save_path="{}/dynamic_range_{}.png".format(output_direct, tissue_name))
+    #     common_functions.plot_heat_map(
+    #         glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
+    #         cbar_name='Glucose Contribution',
+    #         save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
+    #     common_functions.plot_heat_map(
+    #         objective_function_list_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
+    #         cbar_name='Objective difference',
+    #         save_path="{}/objective_function_{}.png".format(output_direct, tissue_name))
+    #     common_functions.plot_heat_map(
+    #         filtered_obj_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
+    #         cbar_name='Filtered objective difference',
+    #         save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
+
+    for sample_type in sample_type_list:
+        common_functions.plot_violin_distribution(
+            {sample_type: well_fit_median_contri_dict[sample_type]},
+            {sample_type: color_set.purple},
+            save_path="{}/glucose_contribution_violin_parameter_sensitivity_{}.png".format(
+                output_direct, sample_type))
+        common_functions.plot_violin_distribution(
+            {sample_type: objective_function_median_dict[sample_type]},
+            {sample_type: color_set.purple},
+            cutoff=obj_tolerance,
+            save_path="{}/objective_function_violin_parameter_sensitivity_{}.png".format(
+                output_direct, sample_type))
+
+    output_data_dict = {
+        'result_list': result_list,
+        'processed_result_list': processed_result_list,
+        # 'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
+        # 'objective_function_list_dict': objective_function_list_dict
+    }
+    with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
+        pickle.dump(output_data_dict, f_out)
+
+    if test_running:
+        plt.show()
+
+
 def model1_parameters():
     model_name = "model1"
     output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
@@ -1213,7 +1380,7 @@ def model1_parameters():
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_result_processing_and_plotting_model12
+    hook_after_all_iterations = final_processing_dynamic_range_model12
     model_construction_func = model1_construction
     parameter_construction_func = dynamic_range_model12
 
@@ -1238,31 +1405,7 @@ def model1_parameters():
         f1_display_interv = 250
         g2_num = 1500
         g2_display_interv = 250
-
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'f1_num': f1_num,
-        'f1_range': f1_range,
-        'f1_display_interv': f1_display_interv,
-        'g2_num': g2_num,
-        'g2_range': g2_range,
-        'g2_display_interv': g2_display_interv,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model2_parameters():
@@ -1275,7 +1418,7 @@ def model2_parameters():
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_result_processing_and_plotting_model12
+    hook_after_all_iterations = final_processing_dynamic_range_model12
     model_construction_func = model2_construction
     parameter_construction_func = dynamic_range_model12
 
@@ -1303,30 +1446,7 @@ def model2_parameters():
         g2_num = 1500
         g2_display_interv = 250
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'f1_num': f1_num,
-        'f1_range': f1_range,
-        'f1_display_interv': f1_display_interv,
-        'g2_num': g2_num,
-        'g2_range': g2_range,
-        'g2_display_interv': g2_display_interv,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model3_parameters():
@@ -1339,7 +1459,7 @@ def model3_parameters():
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_result_processing_and_plotting_model34
+    hook_after_all_iterations = final_processing_dynamic_range_model34
     model_construction_func = model3_construction
     parameter_construction_func = dynamic_range_model34
 
@@ -1365,36 +1485,12 @@ def model3_parameters():
 
     if test_running:
         total_point_num = int(3e3)
-        # point_interval_list = [30, 30, 12, 12, 80]
         ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
-        # point_interval_list = [10, 10, 4, 4, 20]
         ternary_resolution = int(2 ** 8)
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'total_point_num': total_point_num,
-        'free_fluxes_name_list': free_fluxes_name_list,
-        'free_fluxes_range_list': free_fluxes_range_list,
-        'ternary_sigma': ternary_sigma,
-        'ternary_resolution': ternary_resolution,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model4_parameters():
@@ -1407,7 +1503,7 @@ def model4_parameters():
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_result_processing_and_plotting_model34
+    hook_after_all_iterations = final_processing_dynamic_range_model34
     model_construction_func = model4_construction
     parameter_construction_func = dynamic_range_model34
 
@@ -1440,29 +1536,7 @@ def model4_parameters():
         # point_interval_list = [25, 25, 5, 5, 25]
         ternary_resolution = int(2 ** 8)
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'total_point_num': total_point_num,
-        'free_fluxes_name_list': free_fluxes_name_list,
-        'free_fluxes_range_list': free_fluxes_range_list,
-        'ternary_sigma': ternary_sigma,
-        'ternary_resolution': ternary_resolution,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model5_parameters():
@@ -1476,7 +1550,7 @@ def model5_parameters():
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model5, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model5
-    hook_after_all_iterations = final_result_processing_and_plotting_model5
+    hook_after_all_iterations = final_processing_dynamic_range_model5
     model_construction_func = model5_construction
     parameter_construction_func = dynamic_range_model34
 
@@ -1509,29 +1583,7 @@ def model5_parameters():
         # point_interval_list = [25, 25, 5, 5, 25]
         ternary_resolution = int(2 ** 8)
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'total_point_num': total_point_num,
-        'free_fluxes_name_list': free_fluxes_name_list,
-        'free_fluxes_range_list': free_fluxes_range_list,
-        'ternary_sigma': ternary_sigma,
-        'ternary_resolution': ternary_resolution,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model6_parameters():
@@ -1544,7 +1596,7 @@ def model6_parameters():
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_result_processing_and_plotting_model12
+    hook_after_all_iterations = final_processing_dynamic_range_model12
     model_construction_func = model6_construction
     parameter_construction_func = dynamic_range_model12
 
@@ -1572,30 +1624,7 @@ def model6_parameters():
         g2_num = 1500
         g2_display_interv = 250
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'f1_num': f1_num,
-        'f1_range': f1_range,
-        'f1_display_interv': f1_display_interv,
-        'g2_num': g2_num,
-        'g2_range': g2_range,
-        'g2_display_interv': g2_display_interv,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model7_parameters():
@@ -1608,7 +1637,7 @@ def model7_parameters():
     model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_result_processing_and_plotting_model34
+    hook_after_all_iterations = final_processing_dynamic_range_model34
     model_construction_func = model7_construction
     parameter_construction_func = dynamic_range_model34
 
@@ -1640,29 +1669,7 @@ def model7_parameters():
         total_point_num = int(3e6)
         ternary_resolution = int(2 ** 8)
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'optimization_repeat_time': optimization_repeat_time,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'obj_tolerance': obj_tolerance,
-
-        'total_point_num': total_point_num,
-        'free_fluxes_name_list': free_fluxes_name_list,
-        'free_fluxes_range_list': free_fluxes_range_list,
-        'ternary_sigma': ternary_sigma,
-        'ternary_resolution': ternary_resolution,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def linear_model1_parameters():
@@ -1674,7 +1681,7 @@ def linear_model1_parameters():
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_linear_model12, data_collection_kwargs)
     hook_in_each_iteration = result_processing_each_iteration_linear_model12
-    hook_after_all_iterations = final_result_processing_and_plotting_linear_model12
+    hook_after_all_iterations = final_processing_dynamic_range_linear_model12
     model_construction_func = model1_construction
     parameter_construction_func = dynamic_range_linear_model12
 
@@ -1700,30 +1707,7 @@ def linear_model1_parameters():
         g2_num = 1500
         g2_display_interv = 250
 
-    output_parameter_dict = {
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'model_mid_data_dict': model_mid_data_dict,
-        'constant_flux_dict': constant_flux_dict,
-        'complete_flux_dict': complete_flux_dict,
-        'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-        'ratio_lb': ratio_lb,
-        'ratio_ub': ratio_ub,
-
-        'f1_num': f1_num,
-        'f1_range': f1_range,
-        'f1_display_interv': f1_display_interv,
-        'g2_num': g2_num,
-        'g2_range': g2_range,
-        'g2_display_interv': g2_display_interv,
-
-        'parameter_construction_func': parameter_construction_func,
-        'model_construction_func': model_construction_func,
-        'hook_in_each_iteration': hook_in_each_iteration,
-        'hook_after_all_iterations': hook_after_all_iterations
-    }
-    return output_parameter_dict
+    return locals()
 
 
 def model1_all_tissue():
@@ -1740,9 +1724,9 @@ def model1_all_tissue():
     model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_all_tissue, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_result_processing_and_plotting_all_tissue_model12
+    hook_after_all_iterations = final_processing_all_tissue_model12
     model_construction_func = model1_construction
-    parameter_construction_func = all_tissue_model12
+    parameter_construction_func = all_tissue_model1
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
                          ['Fcirc_glc', 'Fcirc_lac']
@@ -1766,27 +1750,49 @@ def model1_all_tissue():
         g2_num = 800
         g2_display_interv = 200
 
-    # output_parameter_dict = {
-    #     'model_name': model_name,
-    #     'output_direct': output_direct,
-    #     'model_mid_data_dict': model_mid_data_dict,
-    #     'constant_flux_dict': constant_flux_dict,
-    #     'complete_flux_dict': complete_flux_dict,
-    #     'optimization_repeat_time': optimization_repeat_time,
-    #     'min_flux_value': min_flux_value,
-    #     'max_flux_value': max_flux_value,
-    #     'obj_tolerance': obj_tolerance,
-    #
-    #     'f1_num': f1_num,
-    #     'f1_range': f1_range,
-    #     'f1_display_interv': f1_display_interv,
-    #     'g2_num': g2_num,
-    #     'g2_range': g2_range,
-    #     'g2_display_interv': g2_display_interv,
-    #
-    #     'parameter_construction_func': parameter_construction_func,
-    #     'model_construction_func': model_construction_func,
-    #     'hook_in_each_iteration': hook_in_each_iteration,
-    #     'hook_after_all_iterations': hook_after_all_iterations
-    # }
+    return locals()
+
+
+def model1_parameter_sensitivity():
+    model_name = "model1_parameter_sensitivity"
+    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+
+    hook_in_each_iteration = result_processing_each_iteration_model12
+    hook_after_all_iterations = final_processing_parameter_sensitivity_model1
+    model_construction_func = model1_construction
+    parameter_construction_func = parameter_sensitivity_model1
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fcirc_glc', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.2
+    # min_deviation_factor = 0.1
+    # max_deviation_factor = 0.9
+    deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.1, 0.9]}
+    sigma_dict = {'mid': 0.3, 'flux': 0.1}
+    f1_range = [1, 150]
+    g2_range = [1, 150]
+    if test_running:
+        f1_num = 21
+        f1_display_interv = 20
+        g2_num = 21
+        g2_display_interv = 20
+        parameter_sampling_num = 10
+    else:
+        f1_num = 100
+        f1_display_interv = 20
+        g2_num = 100
+        g2_display_interv = 20
+        parameter_sampling_num = 100
+
     return locals()
