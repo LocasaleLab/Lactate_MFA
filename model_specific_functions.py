@@ -1776,10 +1776,8 @@ def model1_parameter_sensitivity():
     max_flux_value = 5000
     optimization_repeat_time = 10
     obj_tolerance = 0.2
-    # min_deviation_factor = 0.1
-    # max_deviation_factor = 0.9
     deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.1, 0.9]}
-    sigma_dict = {'mid': 0.3, 'flux': 0.1}
+    sigma_dict = {'mid': 0.5, 'flux': 0.5}
     f1_range = [1, 150]
     g2_range = [1, 150]
     if test_running:
