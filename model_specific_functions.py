@@ -1794,3 +1794,17 @@ def model1_parameter_sensitivity():
         parameter_sampling_num = 100
 
     return locals()
+
+
+def model1_m5_parameters():
+    model1_dict = model1_parameters()
+    model1_dict['model_name'] = 'model1_m5'
+    model1_dict['data_collection_kwargs']['mouse_id_list'] = ['M5']
+    return model1_dict
+
+
+def model1_m9_parameters():
+    model1_dict = model1_parameters()
+    model1_dict['model_name'] = 'model1_m9'
+    model1_dict['data_collection_kwargs']['mouse_id_list'] = ['M9']
+    return model1_dict

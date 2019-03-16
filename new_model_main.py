@@ -668,7 +668,10 @@ def non_linear_main():
     # model_parameter_dict = model_specific_functions.model6_parameters()
     # model_parameter_dict = model_specific_functions.model7_parameters()
     # model_parameter_dict = model_specific_functions.model1_all_tissue()
-    model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
+    # model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
+    model_parameter_dict = model_specific_functions.model1_m5_parameters()
+    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    model_parameter_dict = model_specific_functions.model1_m9_parameters()
     parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # fitting_result_display(**model_parameter_dict)
 
