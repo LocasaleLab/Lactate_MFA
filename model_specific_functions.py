@@ -1797,14 +1797,76 @@ def model1_parameter_sensitivity():
 
 
 def model1_m5_parameters():
-    model1_dict = model1_parameters()
-    model1_dict['model_name'] = 'model1_m5'
-    model1_dict['data_collection_kwargs']['mouse_id_list'] = ['M5']
-    return model1_dict
+    model_name = "model1_m5"
+    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M5'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+
+    hook_in_each_iteration = result_processing_each_iteration_model12
+    hook_after_all_iterations = final_processing_dynamic_range_model12
+    model_construction_func = model1_construction
+    parameter_construction_func = dynamic_range_model12
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fcirc_glc', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.1
+    f1_range = [1, 150]
+    g2_range = [1, 150]
+    if test_running:
+        f1_num = 51
+        f1_display_interv = 50
+        g2_num = 51
+        g2_display_interv = 50
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
+    return locals()
 
 
 def model1_m9_parameters():
-    model1_dict = model1_parameters()
-    model1_dict['model_name'] = 'model1_m9'
-    model1_dict['data_collection_kwargs']['mouse_id_list'] = ['M9']
-    return model1_dict
+    model_name = "model1_m9"
+    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M9'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+
+    hook_in_each_iteration = result_processing_each_iteration_model12
+    hook_after_all_iterations = final_processing_dynamic_range_model12
+    model_construction_func = model1_construction
+    parameter_construction_func = dynamic_range_model12
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
+                         ['Fcirc_glc', 'Fcirc_lac']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.1
+    f1_range = [1, 150]
+    g2_range = [1, 150]
+    if test_running:
+        f1_num = 51
+        f1_display_interv = 50
+        g2_num = 51
+        g2_display_interv = 50
+    else:
+        f1_num = 1500
+        f1_display_interv = 250
+        g2_num = 1500
+        g2_display_interv = 250
+    return locals()

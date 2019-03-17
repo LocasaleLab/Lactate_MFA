@@ -276,7 +276,7 @@ def start_point_generator(
     while failed_time < maximal_failed_time:
         random_obj = np.random.random(a_eq.shape[1]) - 0.4
         res = scipy.optimize.linprog(
-            random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lb_ub), options={})  # "disp": True
+            random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lb_ub), options={'tol': 1e-10})  # "disp": True
         if res.success:
             result = np.array(res.x)
             break
