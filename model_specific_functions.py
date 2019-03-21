@@ -1267,9 +1267,9 @@ def final_processing_all_tissue_model12(
     output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
-        'valid_matrix_dict': valid_matrix_dict,
-        'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
-        'objective_function_matrix_dict': objective_function_matrix_dict
+        # 'valid_matrix_dict': valid_matrix_dict,
+        # 'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
+        # 'objective_function_matrix_dict': objective_function_matrix_dict
     }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
