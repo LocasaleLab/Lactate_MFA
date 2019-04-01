@@ -1269,7 +1269,8 @@ def final_processing_all_tissue_model12(
         # 'processed_result_list': processed_result_list,
         'valid_matrix_dict': valid_matrix_dict,
         'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
-        'objective_function_matrix_dict': objective_function_matrix_dict
+        'objective_function_matrix_dict': objective_function_matrix_dict,
+        'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict
     }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
@@ -1326,23 +1327,6 @@ def final_processing_parameter_sensitivity_model1(
             new_array = np.array(contri_list)
             well_fit_glucose_contri_array_dict[sample_type].append(new_array)
             well_fit_median_contri_dict[sample_type].append(np.median(new_array))
-
-    # for sample_type in sample_type_list:
-    #     common_functions.plot_heat_map(
-    #         valid_matrix_dict[tissue_name], g2_free_flux, f1_free_flux,
-    #         save_path="{}/dynamic_range_{}.png".format(output_direct, tissue_name))
-    #     common_functions.plot_heat_map(
-    #         glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
-    #         cbar_name='Glucose Contribution',
-    #         save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
-    #     common_functions.plot_heat_map(
-    #         objective_function_list_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
-    #         cbar_name='Objective difference',
-    #         save_path="{}/objective_function_{}.png".format(output_direct, tissue_name))
-    #     common_functions.plot_heat_map(
-    #         filtered_obj_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
-    #         cbar_name='Filtered objective difference',
-    #         save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
 
     for sample_type in sample_type_list:
         common_functions.plot_violin_distribution(

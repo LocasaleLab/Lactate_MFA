@@ -387,7 +387,8 @@ def violin_test():
         'c': np.array([251, 138, 68]) / 255
     }
     # violin_plot(data_dict, color_dict)
-    violin_plot({'c': data_dict['c']}, {'c': color_set.purple})
+    # violin_plot({'c': data_dict['c']}, {'c': color_set.purple})
+    violin_plot({'c': data_dict['c']}, {'c': color_set.blue})
     plt.show()
 
 
@@ -705,6 +706,28 @@ def read_test2():
     plt.show()
 
 
+def error_of_approximation():
+    x_min = 0
+    x_max = 1.01
+    x_resolution = 1000
+    x_value = np.linspace(x_min, x_max, x_resolution)
+    y_10 = x_value ** 10
+    y_15 = x_value ** 15
+    y_20 = x_value ** 20
+    y_30 = x_value ** 30
+    fig, ax = plt.subplots()
+    ax.plot(x_value, x_value ** 10, label='n=10')
+    ax.plot(x_value, x_value ** 15, label='n=15')
+    ax.plot(x_value, x_value ** 20, label='n=20')
+    ax.plot(x_value, x_value ** 30, label='n=30')
+    ax.plot(x_value, x_value ** 50, label='n=50')
+    ax.axhline(0.1, linestyle='--')
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    ax.legend()
+    plt.show()
+
+
 def main():
     # emoji_test()
     # surrounding_circle()
@@ -719,6 +742,7 @@ def main():
     # ternary_test()
     # shuffle_test()
     # read_test2()
+    # error_of_approximation()
 
 
 if __name__ == '__main__':
