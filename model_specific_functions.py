@@ -18,20 +18,6 @@ color_set = config.Color()
 test_running = config.test_running
 
 
-class FreeVariable(object):
-    def __init__(self, name, total_num, var_range, display_interv):
-        self.flux_name = name
-        self.total_num = total_num + 1
-        self.range = var_range
-        self.display_interv = display_interv
-        self.value_array = np.linspace(*self.range, self.total_num)
-        self.tick_in_range = np.arange(0, self.total_num, self.display_interv, dtype='int')
-        self.tick_labels = np.around(self.value_array[self.tick_in_range])
-
-    def __iter__(self):
-        return self.value_array.__iter__()
-
-
 def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
     file_path = "data_collection.xlsx"
     experiment_name_prefix = "Sup_Fig_5_fasted"
@@ -69,8 +55,10 @@ def dynamic_range_model12(
         optimal_obj_value) = common_functions.mid_constraint_constructor(
         mid_constraint_list, complete_flux_dict)
 
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    f1_free_flux = config.FreeVariable(
+        name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = config.FreeVariable(
+        name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
 
     iter_parameter_list = []
     matrix_loc_list = []
@@ -102,8 +90,10 @@ def all_tissue_model1(
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    f1_free_flux = config.FreeVariable(
+        name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = config.FreeVariable(
+        name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
 
     iter_parameter_list = []
     for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
@@ -193,8 +183,10 @@ def parameter_sensitivity_model1(
 
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    f1_free_flux = config.FreeVariable(
+        name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = config.FreeVariable(
+        name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
     mid_sigma = sigma_dict['mid']
     flux_sigma = sigma_dict['flux']
     iter_parameter_list = []
@@ -313,8 +305,10 @@ def dynamic_range_linear_model12(
     flux_balance_and_mid_ratio_matrix = np.vstack([flux_balance_matrix, ratio_matrix])
     flux_balance_and_mid_ratio_constant_vector = np.hstack([flux_balance_constant_vector, ratio_constant_vector])
 
-    f1_free_flux = FreeVariable(name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = FreeVariable(name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    f1_free_flux = config.FreeVariable(
+        name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = config.FreeVariable(
+        name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
 
     iter_parameter_list = []
     matrix_loc_list = []
@@ -881,7 +875,7 @@ def solve_glucose_contribution_model12(result_dict: dict):
     return glucose_ratio
 
 
-def result_processing_each_iteration_linear_model12(result: common_functions.Result, **other_parameters):
+def result_processing_each_iteration_linear_model12(result: config.Result, **other_parameters):
     processed_dict = {}
     if result.success:
         processed_dict['valid'] = True
@@ -893,7 +887,7 @@ def result_processing_each_iteration_linear_model12(result: common_functions.Res
     return processed_dict
 
 
-def result_processing_each_iteration_model12(result: common_functions.Result, **other_parameters):
+def result_processing_each_iteration_model12(result: config.Result, **other_parameters):
     processed_dict = {}
     # if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
     if result.success:
@@ -908,7 +902,7 @@ def result_processing_each_iteration_model12(result: common_functions.Result, **
     return processed_dict
 
 
-def result_processing_each_iteration_model34(result: common_functions.Result, **other_parameters):
+def result_processing_each_iteration_model34(result: config.Result, **other_parameters):
     def solve_glucose_contribution_model34(result_dict: dict):
         f56 = result_dict['F5'] - result_dict['F6']
         f78 = result_dict['F7'] - result_dict['F8']
@@ -940,7 +934,7 @@ def result_processing_each_iteration_model34(result: common_functions.Result, **
     return processed_dict
 
 
-def result_processing_each_iteration_model5(result: common_functions.Result, **other_parameters):
+def result_processing_each_iteration_model5(result: config.Result, **other_parameters):
     def solve_glucose_contribution_model5(result_dict: dict):
         f56 = result_dict['F5'] - result_dict['F6']
         f78 = result_dict['F7'] - result_dict['F8']
@@ -983,8 +977,8 @@ def model1_print_result(result_dict, constant_flux_dict):
 
 def final_processing_dynamic_range_linear_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
+    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
+    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     matrix_loc_list = const_parameter_dict['matrix_loc_list']
     output_direct = const_parameter_dict['output_direct']
 
@@ -1027,8 +1021,8 @@ def final_processing_dynamic_range_linear_model12(
 
 def final_processing_dynamic_range_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
+    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
+    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     matrix_loc_list = const_parameter_dict['matrix_loc_list']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
@@ -1073,13 +1067,19 @@ def final_processing_dynamic_range_model12(
         {'normal': color_set.blue},
         save_path="{}/glucose_contribution_violin.png".format(output_direct))
 
-    output_data_dict = {
+    raw_output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
+    }
+    output_data_dict = {
         'valid_matrix': valid_matrix,
         'glucose_contri_matrix': glucose_contri_matrix,
-        'objective_function_matrix': objective_function_matrix
+        'objective_function_matrix': objective_function_matrix,
+        'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
     }
+
+    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
+        pickle.dump(raw_output_data_dict, f_out)
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
@@ -1115,15 +1115,20 @@ def final_processing_dynamic_range_model34(
     if len(well_fit_three_contri_list) == 0:
         raise ValueError('No point fit the constraint for contribution of carbon sources!')
     contribution_matrix = np.array(well_fit_three_contri_list)
-    output_data_dict = {
+    raw_output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
+    }
+    output_data_dict = {
         'valid_point_list': valid_point_list,
         'invalid_point_list': invalid_point_list,
         'contribution_matrix': contribution_matrix,
         'obj_diff_value_list': obj_diff_value_list,
+        'well_fit_three_contri_list': well_fit_three_contri_list,
     }
 
+    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
+        pickle.dump(raw_output_data_dict, f_out)
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
@@ -1170,15 +1175,19 @@ def final_processing_dynamic_range_model5(
     if len(well_fit_glucose_contri_list) == 0:
         raise ValueError('No point fit the constraint for contribution of carbon sources!')
     contribution_matrix = np.array(well_fit_glucose_contri_list)
-    output_data_dict = {
+    raw_output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
+    }
+    output_data_dict = {
         'valid_point_list': valid_point_list,
         'invalid_point_list': invalid_point_list,
         'contribution_matrix': contribution_matrix,
         'obj_diff_value_list': obj_diff_value_list,
+        'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
     }
-
+    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
+        pickle.dump(raw_output_data_dict, f_out)
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
@@ -1201,8 +1210,8 @@ def final_processing_dynamic_range_model5(
 
 def final_processing_all_tissue_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
+    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
+    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     tissue_name_list = const_parameter_dict['tissue_name_list']
@@ -1281,8 +1290,8 @@ def final_processing_all_tissue_model12(
 
 def final_processing_parameter_sensitivity_model1(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: FreeVariable = const_parameter_dict['g2_free_flux']
+    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
+    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     sample_type_list = const_parameter_dict['sample_type_list']
@@ -1342,10 +1351,10 @@ def final_processing_parameter_sensitivity_model1(
                 output_direct, sample_type))
 
     output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-        # 'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
-        # 'objective_function_list_dict': objective_function_list_dict
+        # 'result_list': result_list,
+        # 'processed_result_list': processed_result_list,
+        'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
+        'objective_function_list_dict': objective_function_list_dict
     }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
@@ -1561,11 +1570,11 @@ def model5_parameters():
     if test_running:
         total_point_num = int(3e3)
         # point_interval_list = [50, 50, 20, 20, 100]
-        ternary_resolution = int(2 ** 7)
+        # ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
         # point_interval_list = [25, 25, 5, 5, 25]
-        ternary_resolution = int(2 ** 8)
+        # ternary_resolution = int(2 ** 8)
 
     return locals()
 

@@ -7,6 +7,34 @@ else:
     test_running = False
 
 
+class Result(object):
+    def __init__(
+            self, result_dict: dict, obj_value: float, success: bool, minimal_obj_value: float, label: dict):
+        self.result_dict = result_dict
+        self.obj_value = obj_value
+        self.success = success
+        self.minimal_obj_value = minimal_obj_value
+        self.label = label
+
+    def __repr__(self):
+        return "Result: {}\nObjective value: {}\nSuccess: {}\nMinimal objective value: {}".format(
+            self.result_dict, self.obj_value, self.success, self.minimal_obj_value)
+
+
+class FreeVariable(object):
+    def __init__(self, name, total_num, var_range, display_interv):
+        self.flux_name = name
+        self.total_num = total_num + 1
+        self.range = var_range
+        self.display_interv = display_interv
+        self.value_array = np.linspace(*self.range, self.total_num)
+        self.tick_in_range = np.arange(0, self.total_num, self.display_interv, dtype='int')
+        self.tick_labels = np.around(self.value_array[self.tick_in_range])
+
+    def __iter__(self):
+        return self.value_array.__iter__()
+
+
 class Color(object):
     blue = np.array([21, 113, 177]) / 255
     orange = np.array([251, 138, 68]) / 255

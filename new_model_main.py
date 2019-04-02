@@ -22,20 +22,6 @@ color_set = config.Color()
 test_running = config.test_running
 
 
-class Result(object):
-    def __init__(
-            self, result_dict: dict, obj_value: float, success: bool, minimal_obj_value: float, label: dict):
-        self.result_dict = result_dict
-        self.obj_value = obj_value
-        self.success = success
-        self.minimal_obj_value = minimal_obj_value
-        self.label = label
-
-    def __repr__(self):
-        return "Result: {}\nObjective value: {}\nSuccess: {}\nMinimal objective value: {}".format(
-            self.result_dict, self.obj_value, self.success, self.minimal_obj_value)
-
-
 def natural_dist(_c13_ratio, carbon_num):
     c12_ratio = 1 - _c13_ratio
     total_num = carbon_num + 1
@@ -309,7 +295,7 @@ def one_case_solver_linear(
                 flux_name: flux_value for flux_name, flux_value
                 in zip(complete_flux_dict.keys(), current_result.x)}
             success = True
-    return Result(result_dict, 0, success, 0, label)
+    return config.Result(result_dict, 0, success, 0, label)
 
 
 def one_case_solver_slsqp(
@@ -355,7 +341,7 @@ def one_case_solver_slsqp(
                     in zip(complete_flux_dict.keys(), current_result.x)}
                 obj_value = current_result.fun
                 success = current_result.success
-    return Result(result_dict, obj_value, success, optimal_obj_value, label)
+    return config.Result(result_dict, obj_value, success, optimal_obj_value, label)
 
 
 def calculate_one_tissue_tca_contribution(input_net_flux_list):
@@ -661,17 +647,17 @@ def linear_main():
 def non_linear_main():
     # model_parameter_dict = model_specific_functions.model1_parameters()
     # model_parameter_dict = model_specific_functions.model2_parameters()
-    # model_parameter_dict = model_specific_functions.model3_parameters()
+    model_parameter_dict = model_specific_functions.model3_parameters()
     # model_parameter_dict = model_specific_functions.model4_parameters()
-    model_parameter_dict = model_specific_functions.model5_parameters()
+    # model_parameter_dict = model_specific_functions.model5_parameters()
     # model_parameter_dict = model_specific_functions.model6_parameters()
     # model_parameter_dict = model_specific_functions.model7_parameters()
     # model_parameter_dict = model_specific_functions.model1_all_tissue()
     # model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
     # model_parameter_dict = model_specific_functions.model1_m5_parameters()
     parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model1_m9_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    model_parameter_dict = model_specific_functions.model6_parameters()
+    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # fitting_result_display(**model_parameter_dict)
 
 
