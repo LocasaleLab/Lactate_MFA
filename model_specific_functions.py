@@ -1174,7 +1174,6 @@ def final_processing_dynamic_range_model5(
 
     if len(well_fit_glucose_contri_list) == 0:
         raise ValueError('No point fit the constraint for contribution of carbon sources!')
-    contribution_matrix = np.array(well_fit_glucose_contri_list)
     raw_output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
@@ -1182,7 +1181,6 @@ def final_processing_dynamic_range_model5(
     output_data_dict = {
         'valid_point_list': valid_point_list,
         'invalid_point_list': invalid_point_list,
-        'contribution_matrix': contribution_matrix,
         'obj_diff_value_list': obj_diff_value_list,
         'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
     }
