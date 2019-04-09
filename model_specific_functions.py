@@ -1570,11 +1570,11 @@ def model5_parameters():
     if test_running:
         total_point_num = int(3e3)
         # point_interval_list = [50, 50, 20, 20, 100]
-        # ternary_resolution = int(2 ** 7)
+        ternary_resolution = int(2 ** 7)
     else:
         total_point_num = int(3e6)
         # point_interval_list = [25, 25, 5, 5, 25]
-        # ternary_resolution = int(2 ** 8)
+        ternary_resolution = int(2 ** 8)
 
     return locals()
 
