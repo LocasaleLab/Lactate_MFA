@@ -645,11 +645,11 @@ def linear_main():
 
 
 def non_linear_main():
-    # model_parameter_dict = model_specific_functions.model1_parameters()
+    model_parameter_dict = model_specific_functions.model1_parameters()
     # model_parameter_dict = model_specific_functions.model2_parameters()
     # model_parameter_dict = model_specific_functions.model3_parameters()
     # model_parameter_dict = model_specific_functions.model4_parameters()
-    model_parameter_dict = model_specific_functions.model5_parameters()
+    # model_parameter_dict = model_specific_functions.model5_parameters()
     # model_parameter_dict = model_specific_functions.model6_parameters()
     # model_parameter_dict = model_specific_functions.model7_parameters()
     # model_parameter_dict = model_specific_functions.model1_all_tissue()
