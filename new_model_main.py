@@ -621,9 +621,12 @@ def fitting_result_display(
     else:
         output_direct = "{}/{}".format(total_output_direct, model_name)
     input_data_dict_gz_file = "{}/output_data_dict.gz".format(output_direct)
+    raw_data_dict_gz_file = "{}/raw_output_data_dict.gz".format(output_direct)
     with gzip.open(input_data_dict_gz_file, 'rb') as f_in:
         input_data_dict = pickle.load(f_in)
-    result_list: list = input_data_dict['result_list']
+    with gzip.open(raw_data_dict_gz_file, 'rb') as f_in:
+        raw_input_data_dict = pickle.load(f_in)
+    result_list: list = raw_input_data_dict['result_list']
     target_result_dict = {}
     target_obj_diff = 9999
     # common_name = "compare_bar_min"
@@ -635,6 +638,7 @@ def fitting_result_display(
             target_result_dict = result_object.result_dict
             target_obj_diff = obj_diff
     if len(target_result_dict) != 0:
+        print("\n".join(["{}: {:.4f}".format(flux_name, value) for flux_name, value in target_result_dict.items()]))
         result_evaluation(target_result_dict, {}, mid_constraint_list, target_obj_diff, output_direct, common_name)
         plt.show()
 
@@ -655,10 +659,10 @@ def non_linear_main():
     # model_parameter_dict = model_specific_functions.model1_all_tissue()
     # model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
     # model_parameter_dict = model_specific_functions.model1_m5_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # model_parameter_dict = model_specific_functions.model6_parameters()
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # fitting_result_display(**model_parameter_dict)
+    fitting_result_display(**model_parameter_dict)
 
 
 if __name__ == '__main__':
