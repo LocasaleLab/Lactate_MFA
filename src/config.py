@@ -60,4 +60,6 @@ class Constants(object):
     c13_ratio = 0.01109
     eps_for_log = 1e-10
     eps_of_mid = 1e-5
-    new_output_direct = "new_models"
+
+    data_direct = "data"
+    output_direct = "new_models"

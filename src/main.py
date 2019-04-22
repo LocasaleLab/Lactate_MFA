@@ -4,11 +4,9 @@ import pickle
 import numpy as np
 from scipy.misc import comb
 from scipy.stats import t
-from scipy.stats import rv_discrete
 import matplotlib.pyplot as plt
 
-import data_parser as data_parser
-import config
+from src import data_parser as data_parser, config
 
 color_set = config.Color()
 

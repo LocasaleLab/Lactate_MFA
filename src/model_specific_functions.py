@@ -9,9 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tqdm
 
-import data_parser
-import config
-import new_model_main as common_functions
+from src import new_model_main as common_functions, data_parser, config
 
 constant_set = config.Constants()
 color_set = config.Color()
@@ -19,7 +17,7 @@ test_running = config.test_running
 
 
 def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
-    file_path = "data_collection.xlsx"
+    file_path = "{}/data_collection.xlsx".format(constant_set.data_direct)
     experiment_name_prefix = "Sup_Fig_5_fasted"
     label_list = ["glucose"]
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
@@ -30,7 +28,7 @@ def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
 
 
 def data_loader_dan(data_collection_func, data_collection_kwargs):
-    file_path = "data_collection_from_Dan.xlsx"
+    file_path = "{}/data_collection_from_Dan.xlsx".format(constant_set.data_direct)
     experiment_name_prefix = "no_tumor"
     label_list = ["glucose"]
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
@@ -1363,7 +1361,7 @@ def final_processing_parameter_sensitivity_model1(
 
 def model1_parameters():
     model_name = "model1"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1401,7 +1399,7 @@ def model1_parameters():
 
 def model2_parameters():
     model_name = "model2"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1442,7 +1440,7 @@ def model2_parameters():
 
 def model3_parameters():
     model_name = "model3"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1486,7 +1484,7 @@ def model3_parameters():
 
 def model4_parameters():
     model_name = "model4"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1532,7 +1530,7 @@ def model4_parameters():
 
 def model5_parameters():
     model_name = "model5"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1579,7 +1577,7 @@ def model5_parameters():
 
 def model6_parameters():
     model_name = "model6"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1620,7 +1618,7 @@ def model6_parameters():
 
 def model7_parameters():
     model_name = "model7"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1665,7 +1663,7 @@ def model7_parameters():
 
 def linear_model1_parameters():
     model_name = "linear_model1"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"],  # 'mouse_id_list': None,
@@ -1703,7 +1701,7 @@ def linear_model1_parameters():
 
 def model1_all_tissue():
     model_name = "model1_all_tissue"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1746,7 +1744,7 @@ def model1_all_tissue():
 
 def model1_parameter_sensitivity():
     model_name = "model1_parameter_sensitivity"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -1789,7 +1787,7 @@ def model1_parameter_sensitivity():
 
 def model1_m5_parameters():
     model_name = "model1_m5"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M5'],
@@ -1827,7 +1825,7 @@ def model1_m5_parameters():
 
 def model1_m9_parameters():
     model_name = "model1_m9"
-    output_direct = "{}/{}".format(constant_set.new_output_direct, model_name)
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M9'],

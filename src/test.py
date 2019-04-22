@@ -7,13 +7,10 @@ import emoji
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
-import re
 import cvxopt
 
-import model_specific_functions
-import config
+from src import model_specific_functions, config
 
 color_set = config.Color()
 

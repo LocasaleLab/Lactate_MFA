@@ -14,8 +14,7 @@ import ternary
 from ternary.helpers import simplex_iterator
 import cvxopt
 
-import config
-import model_specific_functions
+from src import model_specific_functions, config
 
 constant_set = config.Constants()
 color_set = config.Color()
