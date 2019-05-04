@@ -254,13 +254,13 @@ def start_point_generator(
     a_eq = complete_balance_matrix
     b_eq = -complete_balance_vector
     lp_lb = min_flux_value
-    lb_ub = max_flux_value
+    lp_ub = max_flux_value
     result = None
     failed_time = 0
     while failed_time < maximal_failed_time:
         random_obj = np.random.random(a_eq.shape[1]) - 0.4
         res = scipy.optimize.linprog(
-            random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lb_ub), options={'tol': 1e-10})  # "disp": True
+            random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lp_ub), options={'tol': 1e-10})  # "disp": True
         if res.success:
             result = np.array(res.x)
             break
@@ -648,7 +648,7 @@ def linear_main():
 
 
 def non_linear_main():
-    model_parameter_dict = model_specific_functions.model1_parameters()
+    # model_parameter_dict = model_specific_functions.model1_parameters()
     # model_parameter_dict = model_specific_functions.model2_parameters()
     # model_parameter_dict = model_specific_functions.model3_parameters()
     # model_parameter_dict = model_specific_functions.model4_parameters()
@@ -656,12 +656,12 @@ def non_linear_main():
     # model_parameter_dict = model_specific_functions.model6_parameters()
     # model_parameter_dict = model_specific_functions.model7_parameters()
     # model_parameter_dict = model_specific_functions.model1_all_tissue()
-    # model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
+    model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
     # model_parameter_dict = model_specific_functions.model1_m5_parameters()
     parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # model_parameter_dict = model_specific_functions.model6_parameters()
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    fitting_result_display(**model_parameter_dict)
+    # fitting_result_display(**model_parameter_dict)
 
 
 if __name__ == '__main__':

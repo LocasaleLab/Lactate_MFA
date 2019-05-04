@@ -8,6 +8,7 @@ from functools import partial
 import numpy as np
 import matplotlib.pyplot as plt
 import tqdm
+from scipy.stats import truncnorm
 
 from src import new_model_main as common_functions, data_parser, config
 
@@ -164,8 +165,10 @@ def parameter_sensitivity_model1(
             array_size = 1
         else:
             array_size = len(original_array)
-        absolute_deviation = np.clip(
-            np.abs(np.random.normal(scale=sigma, size=array_size)), min_deviation_factor, max_deviation_factor)
+        # absolute_deviation = np.clip(
+        #     np.abs(np.random.normal(scale=sigma, size=array_size)), min_deviation_factor, max_deviation_factor)
+        absolute_deviation = truncnorm.rvs(
+            min_deviation_factor / sigma, max_deviation_factor / sigma, size=array_size) * sigma
         random_sign = np.power(-1, np.random.randint(low=0, high=2, size=len(absolute_deviation)))
         deviation = absolute_deviation * random_sign + 1
         new_array = original_array * deviation + lower_bias
