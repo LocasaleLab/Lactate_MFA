@@ -1737,9 +1737,9 @@ def model1_all_tissue():
         g2_num = 31
         g2_display_interv = 30
     else:
-        f1_num = 800
+        f1_num = 1500
         f1_display_interv = 200
-        g2_num = 800
+        g2_num = 1500
         g2_display_interv = 200
 
     return locals()
