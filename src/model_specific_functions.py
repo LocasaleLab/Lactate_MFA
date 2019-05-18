@@ -227,7 +227,7 @@ def parameter_generator_single(free_flux_value, free_fluxes_name_list, constant_
 
 def parameter_generator_parallel(
         constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
-        chunk_size):
+        chunk_size, model_name):
     with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
             partial(
@@ -236,7 +236,7 @@ def parameter_generator_parallel(
             free_flux_value_list, chunk_size)
         iter_parameter_list = list(tqdm.tqdm(
             raw_result_iter, total=list_length, smoothing=0, maxinterval=5,
-            desc="Parameter generation progress"))
+            desc="Parameter generation progress of {}".format(model_name)))
     return iter_parameter_list
 
 
@@ -244,7 +244,7 @@ def dynamic_range_model34(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
-        **other_parameters):
+        model_name, **other_parameters):
     sample = True
     point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
 
@@ -273,7 +273,7 @@ def dynamic_range_model34(
     chunk_size = 1000
     iter_parameter_list = parameter_generator_parallel(
         constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
-        chunk_size)
+        chunk_size, model_name)
 
     const_parameter_dict = {
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,

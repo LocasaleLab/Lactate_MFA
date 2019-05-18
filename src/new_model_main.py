@@ -567,7 +567,7 @@ def parallel_solver_single(
 
 
 def parallel_solver(
-        parameter_construction_func, one_case_solver_func, hook_in_each_iteration,
+        parameter_construction_func, one_case_solver_func, hook_in_each_iteration, model_name,
         hook_after_all_iterations, **other_parameters):
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
@@ -581,7 +581,7 @@ def parallel_solver(
         parallel_num = 12
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
-        parallel_num=parallel_num, **other_parameters)
+        parallel_num=parallel_num, model_name=model_name, **other_parameters)
 
     with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
@@ -591,7 +591,8 @@ def parallel_solver(
                 hook_in_each_iteration=hook_in_each_iteration),
             var_parameter_list, chunk_size)
         raw_result_list = list(tqdm.tqdm(
-            raw_result_iter, total=len(var_parameter_list), smoothing=0, maxinterval=5, desc="Computation progress"))
+            raw_result_iter, total=len(var_parameter_list), smoothing=0, maxinterval=5,
+            desc="Computation progress of {}".format(model_name)))
 
     result_iter, hook_result_iter = zip(*raw_result_list)
     result_list = list(result_iter)
