@@ -358,7 +358,7 @@ def mid_data_loader_linear_model12(
         'lac_sink': common_functions.collect_all_data(
             data_collection_dict, 'lactate', label_list, sink_tissue_marker, mean=False),
         'glc_natural': np.tile(glucose_natural_dist, mouse_num),
-        'glc_infused': np.tile(glucose_infused_dist, mouse_num),
+        'glc_label': np.tile(glucose_infused_dist, mouse_num),
         'pyr_to_glc_source': common_functions.collect_all_data(
             data_collection_dict, 'pyruvate', label_list, source_tissue_marker, mean=False, convolve=True),
         'glc_to_pyr_source': common_functions.collect_all_data(
@@ -401,7 +401,7 @@ def mid_data_loader_model1234(
         'lac_sink': common_functions.collect_all_data(
             data_collection_dict, 'lactate', label_list, sink_tissue_marker, mouse_id_list),
         'glc_natural': common_functions.natural_dist(constant_set.c13_ratio, 6),
-        'glc_infused': np.array([0, 0, 0, 0, 0, 0, 1], dtype='float'),
+        'glc_label': np.array([0, 0, 0, 0, 0, 0, 1], dtype='float'),
         'pyr_to_glc_source': common_functions.collect_all_data(
             data_collection_dict, 'pyruvate', label_list, source_tissue_marker, mouse_id_list, convolve=True),
         'glc_to_pyr_source': common_functions.collect_all_data(
@@ -460,7 +460,7 @@ def mid_data_loader_model5(
         'lac_sink2': common_functions.collect_all_data(
             data_collection_dict, 'lactate', label_list, sink2_tissue_marker, mouse_id_list),
         'glc_natural': common_functions.natural_dist(constant_set.c13_ratio, 6),
-        'glc_infused': np.array([0, 0, 0, 0, 0, 0, 1], dtype='float'),
+        'glc_label': np.array([0, 0, 0, 0, 0, 0, 1], dtype='float'),
         'pyr_to_glc_source': common_functions.collect_all_data(
             data_collection_dict, 'pyruvate', label_list, source_tissue_marker, mouse_id_list, convolve=True),
         'glc_to_pyr_source': common_functions.collect_all_data(
@@ -535,7 +535,7 @@ def model2_construction(mid_data_dict):
     glc_source_balance_eq = {'input': ['F1', 'F6'], 'output': ['F2', 'F5']}
     pyr_source_balance_eq = {'input': ['F5', 'F7'], 'output': ['F6', 'F8', 'F9']}
     lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
-    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Jin'], 'output': ['F1', 'G1']}
     lac_plasma_balance_eq = {'input': ['F4', 'G4'], 'output': ['F3', 'G3']}
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
     pyr_sink_balance_eq = {'input': ['G5', 'G7'], 'output': ['G6', 'G8', 'G9']}
@@ -564,7 +564,7 @@ def model2_construction(mid_data_dict):
         constant_set.target_label: mid_data_dict['lac_sink']}
     glc_plasma_mid_eq = {
         'F2': mid_data_dict['glc_source'], 'G2': mid_data_dict['glc_sink'],
-        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
+        'Jin': mid_data_dict['glc_label'], constant_set.target_label: mid_data_dict['glc_plasma']}
 
     balance_list = [
         glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
@@ -582,9 +582,9 @@ def model3_construction(mid_data_dict):
     glc_source_balance_eq = {'input': ['F1', 'F6', 'F12'], 'output': ['F2', 'F5']}
     pyr_source_balance_eq = {'input': ['F5', 'F7', 'F9'], 'output': ['F6', 'F8', 'F10', 'F11']}
     lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
-    glc_plasma_balance_eq = {'input': ['F2', 'G2'], 'output': ['F1', 'G1', 'H1']}
-    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['F9', 'G9', 'H2']}
-    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'H2'], 'output': ['F3', 'G3', 'H3']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2'], 'output': ['F1', 'G1', 'J1']}
+    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'J1', 'J3'], 'output': ['F9', 'G9', 'J2']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'J2'], 'output': ['F3', 'G3', 'J3']}
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
     pyr_sink_balance_eq = {'input': ['G5', 'G7', 'G9'], 'output': ['G6', 'G8', 'G10', 'G11']}
     lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
@@ -596,26 +596,26 @@ def model3_construction(mid_data_dict):
 
     glc_source_mid_eq = {
         'F1': mid_data_dict['glc_plasma'], 'F6': mid_data_dict['pyr_to_glc_source'],
-        'F10': mid_data_dict['glc_natural'], constant_set.target_label: mid_data_dict['glc_source']}
+        'F12': mid_data_dict['glc_natural'], constant_set.target_label: mid_data_dict['glc_source']}
     pyr_source_mid_eq = {
         'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
-        constant_set.target_label: mid_data_dict['pyr_source']}
+        'F9': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['pyr_source']}
     lac_source_mid_eq = {
         'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
         constant_set.target_label: mid_data_dict['lac_source']}
     lac_plasma_mid_eq = {
         'G4': mid_data_dict['lac_sink'], 'F4': mid_data_dict['lac_source'],
-        'H2': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['lac_plasma']}
+        'J2': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['lac_plasma']}
     pyr_plasma_mid_eq = {
         'G10': mid_data_dict['pyr_sink'], 'F10': mid_data_dict['pyr_source'],
-        'H1': mid_data_dict['glc_to_pyr_plasma'], 'H3': mid_data_dict['lac_plasma'],
+        'J1': mid_data_dict['glc_to_pyr_plasma'], 'J3': mid_data_dict['lac_plasma'],
         constant_set.target_label: mid_data_dict['pyr_plasma']}
     glc_sink_mid_eq = {
         'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
         constant_set.target_label: mid_data_dict['glc_sink']}
     pyr_sink_mid_eq = {
         'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
-        constant_set.target_label: mid_data_dict['pyr_sink']}
+        'G9': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['pyr_sink']}
     lac_sink_mid_eq = {
         'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
         constant_set.target_label: mid_data_dict['lac_sink']}
@@ -636,7 +636,7 @@ def model4_construction(mid_data_dict):
     glc_source_balance_eq = {'input': ['F1', 'F6'], 'output': ['F2', 'F5']}
     pyr_source_balance_eq = {'input': ['F5', 'F7', 'F9'], 'output': ['F6', 'F8', 'F10', 'F11']}
     lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
-    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1', 'H1']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Jin'], 'output': ['F1', 'G1', 'H1']}
     pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['F9', 'G9', 'H2']}
     lac_plasma_balance_eq = {'input': ['F4', 'G4', 'H2'], 'output': ['F3', 'G3', 'H3']}
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
@@ -657,7 +657,7 @@ def model4_construction(mid_data_dict):
         constant_set.target_label: mid_data_dict['lac_source']}
     glc_plasma_mid_eq = {
         'G2': mid_data_dict['glc_sink'], 'F2': mid_data_dict['glc_source'],
-        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
+        'Jin': mid_data_dict['glc_label'], constant_set.target_label: mid_data_dict['glc_plasma']}
     lac_plasma_mid_eq = {
         'G4': mid_data_dict['lac_sink'], 'F4': mid_data_dict['lac_source'],
         'H2': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['lac_plasma']}
@@ -752,7 +752,7 @@ def model6_construction(mid_data_dict):
     glc_source_balance_eq = {'input': ['F1', 'F6', 'F10'], 'output': ['F2', 'F5']}
     pyr_source_balance_eq = {'input': ['F5', 'F7'], 'output': ['F6', 'F8', 'F9']}
     lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
-    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Jin'], 'output': ['F1', 'G1']}
     lac_plasma_balance_eq = {'input': ['F4', 'G4'], 'output': ['F3', 'G3']}
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
     pyr_sink_balance_eq = {'input': ['G5', 'G7'], 'output': ['G6', 'G8', 'G9']}
@@ -781,7 +781,7 @@ def model6_construction(mid_data_dict):
         constant_set.target_label: mid_data_dict['lac_sink']}
     glc_plasma_mid_eq = {
         'F2': mid_data_dict['glc_source'], 'G2': mid_data_dict['glc_sink'],
-        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
+        'Jin': mid_data_dict['glc_label'], constant_set.target_label: mid_data_dict['glc_plasma']}
 
     balance_list = [
         glc_source_balance_eq, pyr_source_balance_eq, lac_source_balance_eq, glc_plasma_balance_eq,
@@ -799,9 +799,9 @@ def model7_construction(mid_data_dict):
     glc_source_balance_eq = {'input': ['F1', 'F6', 'F12'], 'output': ['F2', 'F5']}
     pyr_source_balance_eq = {'input': ['F5', 'F7', 'F9'], 'output': ['F6', 'F8', 'F10', 'F11']}
     lac_source_balance_eq = {'input': ['F3', 'F8'], 'output': ['F4', 'F7']}
-    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Fin'], 'output': ['F1', 'G1', 'H1']}
-    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'H1', 'H3'], 'output': ['F9', 'G9', 'H2']}
-    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'H2'], 'output': ['F3', 'G3', 'H3']}
+    glc_plasma_balance_eq = {'input': ['F2', 'G2', 'Jin'], 'output': ['F1', 'G1', 'J1']}
+    pyr_plasma_balance_eq = {'input': ['F10', 'G10', 'J1', 'J3'], 'output': ['F9', 'G9', 'J2']}
+    lac_plasma_balance_eq = {'input': ['F4', 'G4', 'J2'], 'output': ['F3', 'G3', 'J3']}
     glc_sink_balance_eq = {'input': ['G1', 'G6'], 'output': ['G2', 'G5']}
     pyr_sink_balance_eq = {'input': ['G5', 'G7', 'G9'], 'output': ['G6', 'G8', 'G10', 'G11']}
     lac_sink_balance_eq = {'input': ['G3', 'G8'], 'output': ['G4', 'G7']}
@@ -814,26 +814,26 @@ def model7_construction(mid_data_dict):
         'F12': mid_data_dict['glc_natural'], constant_set.target_label: mid_data_dict['glc_source']}
     pyr_source_mid_eq = {
         'F5': mid_data_dict['glc_to_pyr_source'], 'F7': mid_data_dict['lac_source'],
-        constant_set.target_label: mid_data_dict['pyr_source']}
+        'F9': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['pyr_source']}
     lac_source_mid_eq = {
         'F3': mid_data_dict['lac_plasma'], 'F8': mid_data_dict['pyr_source'],
         constant_set.target_label: mid_data_dict['lac_source']}
     glc_plasma_mid_eq = {
         'G2': mid_data_dict['glc_sink'], 'F2': mid_data_dict['glc_source'],
-        'Fin': mid_data_dict['glc_infused'], constant_set.target_label: mid_data_dict['glc_plasma']}
+        'Jin': mid_data_dict['glc_label'], constant_set.target_label: mid_data_dict['glc_plasma']}
     lac_plasma_mid_eq = {
         'G4': mid_data_dict['lac_sink'], 'F4': mid_data_dict['lac_source'],
-        'H2': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['lac_plasma']}
+        'J2': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['lac_plasma']}
     pyr_plasma_mid_eq = {
         'G10': mid_data_dict['pyr_sink'], 'F10': mid_data_dict['pyr_source'],
-        'H1': mid_data_dict['glc_to_pyr_plasma'], 'H3': mid_data_dict['lac_plasma'],
+        'J1': mid_data_dict['glc_to_pyr_plasma'], 'J3': mid_data_dict['lac_plasma'],
         constant_set.target_label: mid_data_dict['pyr_plasma']}
     glc_sink_mid_eq = {
         'G1': mid_data_dict['glc_plasma'], 'G6': mid_data_dict['pyr_to_glc_sink'],
         constant_set.target_label: mid_data_dict['glc_sink']}
     pyr_sink_mid_eq = {
         'G5': mid_data_dict['glc_to_pyr_sink'], 'G7': mid_data_dict['lac_sink'],
-        constant_set.target_label: mid_data_dict['pyr_sink']}
+        'G9': mid_data_dict['pyr_plasma'], constant_set.target_label: mid_data_dict['pyr_sink']}
     lac_sink_mid_eq = {
         'G3': mid_data_dict['lac_plasma'], 'G8': mid_data_dict['pyr_sink'],
         constant_set.target_label: mid_data_dict['lac_sink']}
@@ -997,8 +997,8 @@ def final_processing_dynamic_range_linear_model12(
     common_functions.plot_heat_map(
         valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
     common_functions.plot_heat_map(
-        glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap='cool', cbar_name='Glucose Contribution',
-        save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
+        glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        cbar_name='Glucose Contribution', save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
 
     glucose_contribution_array = glucose_contri_matrix.reshape([-1])
     glucose_contribution_array = glucose_contribution_array[glucose_contribution_array != np.nan]
@@ -1051,13 +1051,13 @@ def final_processing_dynamic_range_model12(
     common_functions.plot_heat_map(
         valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
     common_functions.plot_heat_map(
-        glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap='cool', cbar_name='Glucose Contribution',
-        save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
+        glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        cbar_name='Glucose Contribution', save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
     common_functions.plot_heat_map(
-        objective_function_matrix, g2_free_flux, f1_free_flux, cmap='cool', cbar_name='Objective difference',
-        save_path="{}/objective_function.png".format(output_direct))
+        objective_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        cbar_name='Objective difference', save_path="{}/objective_function.png".format(output_direct))
     common_functions.plot_heat_map(
-        filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap='cool',
+        filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
         cbar_name='Filtered objective difference',
         save_path="{}/filtered_objective_function.png".format(output_direct))
 
@@ -1253,15 +1253,15 @@ def final_processing_all_tissue_model12(
             valid_matrix_dict[tissue_name], g2_free_flux, f1_free_flux,
             save_path="{}/dynamic_range_{}.png".format(output_direct, tissue_name))
         common_functions.plot_heat_map(
-            glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
+            glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
             cbar_name='Glucose Contribution',
             save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
         common_functions.plot_heat_map(
-            objective_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
+            objective_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
             cbar_name='Objective difference',
             save_path="{}/objective_function_{}.png".format(output_direct, tissue_name))
         common_functions.plot_heat_map(
-            filtered_obj_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap='cool',
+            filtered_obj_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
             cbar_name='Filtered objective difference',
             save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
 
@@ -1415,9 +1415,9 @@ def model2_parameters():
     parameter_construction_func = dynamic_range_model12
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(9)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fin', 'Fcirc_lac']
+                         ['Jin', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500}
+    constant_flux_dict = {'Jin': 111.1, 'Fcirc_lac': 500}
 
     min_flux_value = 1
     max_flux_value = 8000
@@ -1456,9 +1456,9 @@ def model3_parameters():
     parameter_construction_func = dynamic_range_model34
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
+                         ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 100}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 150}
 
     min_flux_value = 1
     max_flux_value = 5000
@@ -1500,9 +1500,9 @@ def model4_parameters():
     parameter_construction_func = dynamic_range_model34
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(11)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
+                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Jin']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
+    constant_flux_dict = {'Jin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
     fcirc_glc_max = 250
 
     min_flux_value = 1
@@ -1593,9 +1593,9 @@ def model6_parameters():
     parameter_construction_func = dynamic_range_model12
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fin', 'Fcirc_lac']
+                         ['Jin', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'F10': 100, 'Fcirc_lac': 400}
+    constant_flux_dict = {'Jin': 111.1, 'F10': 100, 'Fcirc_lac': 400}
 
     min_flux_value = 1
     max_flux_value = 8000
@@ -1634,9 +1634,9 @@ def model7_parameters():
     parameter_construction_func = dynamic_range_model34
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Fin']
+                         ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Jin']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fin': 111.1, 'F12': 100, 'Fcirc_lac': 400, 'Fcirc_pyr': 70}
+    constant_flux_dict = {'Jin': 111.1, 'F12': 150, 'Fcirc_lac': 400, 'Fcirc_pyr': 70}
     fcirc_glc_max = 200
 
     min_flux_value = 1
@@ -1738,9 +1738,9 @@ def model1_all_tissue():
         g2_display_interv = 30
     else:
         f1_num = 1500
-        f1_display_interv = 200
+        f1_display_interv = 250
         g2_num = 1500
-        g2_display_interv = 200
+        g2_display_interv = 250
 
     return locals()
 

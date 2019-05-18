@@ -1,5 +1,6 @@
 import platform
 import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 
 if platform.node() == 'BaranLiu-PC':
     test_running = True
@@ -35,7 +36,12 @@ class FreeVariable(object):
         return self.value_array.__iter__()
 
 
+def rgba_to_rgb(raw_rgb, alpha, background):
+    return raw_rgb * alpha + background * (1 - alpha)
+
+
 class Color(object):
+    white = np.array([1, 1, 1])
     blue = np.array([21, 113, 177]) / 255
     orange = np.array([251, 138, 68]) / 255
     purple = np.array([112, 48, 160]) / 255
@@ -43,6 +49,12 @@ class Color(object):
 
     alpha_value = 0.3
     alpha_for_bar_plot = alpha_value + 0.1
+    alpha_for_heatmap = alpha_value + 0.2
+
+    color_list = [
+        rgba_to_rgb(blue, alpha_for_heatmap, white), white,
+        rgba_to_rgb(orange, alpha_for_heatmap, white)]
+    blue_orange_cmap = LinearSegmentedColormap.from_list('BlOr', color_list, N=200)
 
 
 class Constants(object):
@@ -63,3 +75,4 @@ class Constants(object):
 
     data_direct = "data"
     output_direct = "new_models"
+
