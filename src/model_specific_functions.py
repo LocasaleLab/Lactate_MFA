@@ -2039,7 +2039,7 @@ def model3_all_tissue():
     min_flux_value = 1
     max_flux_value = 5000
     optimization_repeat_time = 10
-    obj_tolerance = 0.1
+    obj_tolerance = 0.15
     ternary_sigma = 0.15
 
     free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
@@ -2054,10 +2054,8 @@ def model3_all_tissue():
     if test_running:
         total_point_num = int(1e2)
         ternary_resolution = int(2 ** 7)
-        obj_tolerance = 0.5
     else:
         total_point_num = int(2e6)
         ternary_resolution = int(2 ** 8)
-        obj_tolerance = 0.1
 
     return locals()
