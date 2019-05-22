@@ -2055,7 +2055,7 @@ def model3_all_tissue():
         total_point_num = int(1e2)
         ternary_resolution = int(2 ** 7)
     else:
-        total_point_num = int(2e6)
+        total_point_num = int(1.2e6)
         ternary_resolution = int(2 ** 8)
 
     return locals()
