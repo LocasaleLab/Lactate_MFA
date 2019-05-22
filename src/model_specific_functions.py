@@ -218,10 +218,9 @@ def parameter_sensitivity_model1(
 
 
 def parameter_generator_single(free_flux_value, free_fluxes_name_list, constant_flux_dict):
-    new_constant_flux_dict = dict(constant_flux_dict)
-    new_constant_flux_dict.update(
-        {flux_name: value for flux_name, value in zip(free_fluxes_name_list, free_flux_value)})
-    var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
+    var_parameter_dict = {
+        'constant_flux_dict': {flux_name: value for flux_name, value in zip(free_fluxes_name_list, free_flux_value)}}
+    var_parameter_dict['constant_flux_dict'].update(constant_flux_dict)
     return var_parameter_dict
 
 
@@ -289,6 +288,70 @@ def dynamic_range_model34(
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
     return const_parameter_dict, iter_parameter_list
+
+
+def all_tissue_model3(
+        model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
+        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
+        total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
+        model_name, **other_parameters):
+    def iter_parameter_generator(
+            _free_fluxes_name_list, _constant_flux_dict, _free_flux_value_list, _model_parameter_dict_list):
+        for model_parameter_dict in _model_parameter_dict_list:
+            for free_flux_value in _free_flux_value_list:
+                new_iter_parameter_dict = model_parameter_dict.copy()
+                new_iter_parameter_dict['constant_flux_dict'] = {
+                    flux_name: value for flux_name, value in zip(_free_fluxes_name_list, free_flux_value)}
+                new_iter_parameter_dict['constant_flux_dict'].update(_constant_flux_dict)
+                yield new_iter_parameter_dict
+
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+
+    free_flux_raw_list = [
+        np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
+    for row_index, _ in enumerate(free_fluxes_range_list):
+        np.random.shuffle(free_flux_raw_list[row_index])
+    free_flux_value_list = np.array(free_flux_raw_list).T
+    # list_length = total_point_num
+    # chunk_size = 1000
+    # constant_flux_dict_list = parameter_generator_parallel(
+    #     constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
+    #     chunk_size, model_name)
+
+    total_iter_length = len(model_mid_data_dict) * total_point_num
+    model_parameter_dict_list = []
+    for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
+        balance_list, mid_constraint_list = model_construction_func(specific_tissue_mid_data_dict)
+        flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
+            balance_list, complete_flux_dict)
+        (
+            substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
+            optimal_obj_value) = common_functions.mid_constraint_constructor(
+            mid_constraint_list, complete_flux_dict)
+        var_parameter_dict = {
+            'flux_balance_matrix': flux_balance_matrix,
+            'flux_balance_constant_vector': flux_balance_constant_vector,
+            'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+            'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+            'label': {'tissue': tissue_name}}
+        model_parameter_dict_list.append(var_parameter_dict)
+
+    const_parameter_dict = {
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
+        'free_fluxes_name_list': free_fluxes_name_list,
+        'iter_length': total_iter_length,
+
+        'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
+    }
+
+    iter_parameter_generator = iter_parameter_generator(
+        free_fluxes_name_list, constant_flux_dict, free_flux_value_list, model_parameter_dict_list)
+    return const_parameter_dict, iter_parameter_generator
 
 
 def dynamic_range_linear_model12(
@@ -1287,6 +1350,89 @@ def final_processing_all_tissue_model12(
         plt.show()
 
 
+def final_processing_all_tissue_model34(
+        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
+    output_direct = const_parameter_dict['output_direct']
+    free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
+    ternary_sigma = const_parameter_dict['ternary_sigma']
+    ternary_resolution = const_parameter_dict['ternary_resolution']
+    obj_tolerance = const_parameter_dict['obj_tolerance']
+    tissue_name_list = const_parameter_dict['tissue_name_list']
+
+    valid_point_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    invalid_point_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    well_fit_three_contri_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    obj_diff_value_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+
+    for solver_result, processed_dict, var_parameter in zip(
+            result_list, processed_result_list, var_parameter_list):
+        tissue_name = solver_result.label['tissue']
+        constant_fluxes_dict = var_parameter['constant_flux_dict']
+        free_fluxes_array = np.array([constant_fluxes_dict[flux_name] for flux_name in free_fluxes_name_list])
+        if processed_dict['valid']:
+            valid_point_dict[tissue_name].append(free_fluxes_array)
+            obj_diff_value_dict[tissue_name].append(processed_dict['obj_diff'])
+            if processed_dict['obj_diff'] < obj_tolerance:
+                well_fit_three_contri_dict[tissue_name].append(processed_dict['contribution_array'])
+        else:
+            invalid_point_dict[tissue_name].append(free_fluxes_array)
+
+    # if len(well_fit_three_contri_list) == 0:
+    #     raise ValueError('No point fit the constraint for contribution of carbon sources!')
+
+    # contribution_matrix = np.array(well_fit_three_contri_list)
+    contribution_matrix_dict = {
+        key: np.array(value) for key, value in well_fit_three_contri_dict.items()}
+    raw_output_data_dict = {
+        'result_list': result_list,
+        'processed_result_list': processed_result_list,
+    }
+    output_data_dict = {
+        'valid_point_dict': valid_point_dict,
+        'invalid_point_dict': invalid_point_dict,
+        'obj_diff_value_dict': obj_diff_value_dict,
+        'contribution_matrix_dict': contribution_matrix_dict,
+    }
+
+    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
+        pickle.dump(raw_output_data_dict, f_out)
+    with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
+        pickle.dump(output_data_dict, f_out)
+
+    # Ternary plot for density of contribution
+    p_list = []
+    for tissue_name, contribution_matrix in contribution_matrix_dict.items():
+        p = mp.Process(
+            target=common_functions.plot_ternary_density, args=(contribution_matrix, ternary_sigma, ternary_resolution),
+            kwargs={'save_path': "{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name)})
+        p.start()
+        p_list.append(p)
+        # common_functions.plot_ternary_density(
+        #     contribution_matrix, ternary_sigma, ternary_resolution,
+        #     save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
+    [p.join() for p in p_list]
+    # Violin plot for objective function
+    for tissue_name, obj_diff_value_list in obj_diff_value_dict.items():
+        p = mp.Process(
+            target=common_functions.plot_violin_distribution, args=(
+                {'normal': np.array(obj_diff_value_list)}, {'normal': color_set.blue}),
+            kwargs={'save_path': "{}/objective_function_diff_violin_{}.png".format(output_direct, tissue_name),
+                    "cutoff": obj_tolerance})
+        p.start()
+        p_list.append(p)
+        # common_functions.plot_violin_distribution(
+        #     {'normal': np.array(obj_diff_value_list)},
+        #     {'normal': color_set.blue},
+        #     cutoff=obj_tolerance,
+        #     save_path="{}/objective_function_diff_violin_{}.png".format(output_direct, tissue_name))
+    [p.join() for p in p_list]
+    # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
+    # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
+
+    if test_running:
+        plt.show()
+
+
 def final_processing_parameter_sensitivity_model1(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
@@ -1861,4 +2007,57 @@ def model1_m9_parameters():
         f1_display_interv = 250
         g2_num = 1500
         g2_display_interv = 250
+    return locals()
+
+
+def model3_all_tissue():
+    model_name = "model3_all_tissue"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    # data_collection_kwargs = {
+    #     'label_list': ["glucose"], 'mouse_id_list': ['M1'],
+    #     'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
+        'source_tissue_marker': constant_set.liver_marker,
+        'sink_tissue_marker_list': [
+            constant_set.heart_marker, constant_set.brain_marker, constant_set.muscle_marker,
+            constant_set.kidney_marker, constant_set.lung_marker, constant_set.pancreas_marker,
+            constant_set.intestine_marker, constant_set.spleen_marker]}
+    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_all_tissue, data_collection_kwargs)
+
+    hook_in_each_iteration = result_processing_each_iteration_model34
+    hook_after_all_iterations = final_processing_all_tissue_model34
+    model_construction_func = model3_construction
+    parameter_construction_func = all_tissue_model3
+
+    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
+                         ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
+    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 150}
+
+    min_flux_value = 1
+    max_flux_value = 5000
+    optimization_repeat_time = 10
+    obj_tolerance = 0.1
+    ternary_sigma = 0.15
+
+    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
+    free_fluxes_range_list = [
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_glc']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
+        [min_flux_value, constant_flux_dict['Fcirc_lac']],
+    ]
+
+    if test_running:
+        total_point_num = int(1e2)
+        ternary_resolution = int(2 ** 7)
+        obj_tolerance = 0.5
+    else:
+        total_point_num = int(2e6)
+        ternary_resolution = int(2 ** 8)
+        obj_tolerance = 0.1
+
     return locals()
