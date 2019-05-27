@@ -1394,8 +1394,8 @@ def final_processing_all_tissue_model34(
         'contribution_matrix_dict': contribution_matrix_dict,
     }
 
-    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(raw_output_data_dict, f_out)
+    # with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
+    #     pickle.dump(raw_output_data_dict, f_out)
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 

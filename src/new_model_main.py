@@ -497,7 +497,7 @@ def plot_ternary_scatter(data_matrix):
 # In cartesian cor, the left bottom corner of triangle is the origin.
 # The scale of all triangle points is 1.
 # Order of ternary cor: x1: bottom (to right) x2: right (to left) x3: left (to bottom)
-def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8, save_path=None):
+def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8, mean=False, save_path=None):
     sqrt_3 = np.sqrt(3)
 
     def standard_2dnormal(x, y, _sigma):
@@ -552,10 +552,13 @@ def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 
     fig, tax = ternary.figure(scale=bin_num)
     tax.heatmap(complete_density_dict, cmap='Blues', style="h")
     tax.boundary(linewidth=1.0)
-    tick_labels = list(np.linspace(0, bin_num, 11) / bin_num)
+    tick_labels = list(np.linspace(0, bin_num, 6) / bin_num)
     tax.ticks(axis='lbr', ticks=tick_labels, linewidth=1, tick_formats="")
     tax.clear_matplotlib_ticks()
     plt.tight_layout()
+    if mean:
+        mean_value = tri_data_matrix.mean(axis=0).reshape([1, -1]) * bin_num
+        tax.scatter(mean_value, marker='o', color=color_set.orange, zorder=100)
     if save_path:
         print(save_path)
         fig.savefig(save_path, dpi=fig.dpi)
