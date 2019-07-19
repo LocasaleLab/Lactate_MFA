@@ -2,7 +2,7 @@ import pickle
 import multiprocessing as mp
 from functools import partial
 import gzip
-import sys
+import os
 
 import numpy as np
 from scipy.misc import comb as scipy_comb
@@ -586,7 +586,7 @@ def parallel_solver(
         parallel_num = 7
     else:
         chunk_size = 100
-        parallel_num = 12
+        parallel_num = min(os.cpu_count(), 20)
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
