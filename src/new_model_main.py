@@ -5,7 +5,7 @@ import gzip
 import os
 
 import numpy as np
-from scipy.misc import comb as scipy_comb
+from scipy.special import comb as scipy_comb
 import matplotlib.pyplot as plt
 import scipy.optimize
 import scipy.interpolate
