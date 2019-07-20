@@ -587,7 +587,7 @@ def parallel_solver(
         parallel_num = 7
     else:
         chunk_size = 100
-        parallel_num = min(os.cpu_count(), 16)
+        parallel_num = min(os.cpu_count(), 20)
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
