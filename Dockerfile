@@ -1,4 +1,4 @@
-FROM continuumio/anaconda:latest
+FROM continuumio/anaconda3:latest
 
 RUN conda config --add channels conda-forge \
     conda install -f cvxopt python-ternary \
