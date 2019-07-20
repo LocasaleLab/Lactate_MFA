@@ -1,6 +1,6 @@
 FROM continuumio/anaconda3:latest
 
-RUN conda config --add channels conda-forge \
+RUN conda config --add channels conda-forge && \
     conda install -y cvxopt python-ternary
 ENV PYTHONPATH=/lactate_exchange
 WORKDIR /lactate_exchange/
