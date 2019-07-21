@@ -591,7 +591,7 @@ def parallel_solver(
         cpu_count = os.cpu_count()
         parallel_num = min(cpu_count, 25)
         if parallel_num > 12:
-            chunk_size = 500
+            chunk_size = 1000
         else:
             chunk_size = 100
 
