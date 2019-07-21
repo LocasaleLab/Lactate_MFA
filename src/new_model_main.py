@@ -264,7 +264,7 @@ def start_point_generator(
         random_obj = np.random.random(a_eq.shape[1]) - 0.4
         try:
             res = scipy.optimize.linprog(
-                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lp_ub), method="revised simplex",
+                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lp_ub), method="simplex",
                 options={'tol': 1e-10})  # "disp": True
         except ValueError:
             failed_time += 1
