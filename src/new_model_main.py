@@ -589,11 +589,11 @@ def parallel_solver(
         parallel_num = 7
     else:
         cpu_count = os.cpu_count()
-        parallel_num = min(cpu_count, 16)
+        parallel_num = min(cpu_count, 32)
         if parallel_num > 12:
-            chunk_size = 500
-        else:
             chunk_size = 100
+        else:
+            chunk_size = 80
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
