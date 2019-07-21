@@ -6,7 +6,6 @@ import os
 import pickle
 from functools import partial
 
-import cvxopt
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.interpolate
@@ -14,6 +13,7 @@ import scipy.optimize
 import scipy.signal
 import ternary
 import tqdm
+import cvxopt
 from scipy.special import comb as scipy_comb
 from ternary.helpers import simplex_iterator
 
