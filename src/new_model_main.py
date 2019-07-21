@@ -585,7 +585,7 @@ def parallel_solver(
     # result = pool.map_async(task, [(x, q) for x in range(10)])
 
     if test_running:
-        chunk_size = 10
+        chunk_size = 40
         parallel_num = 7
     else:
         cpu_count = os.cpu_count()
