@@ -1,20 +1,21 @@
-import pickle
-import multiprocessing as mp
-from functools import partial
-import itertools as it
+import argparse
 import gzip
+import itertools as it
+import multiprocessing as mp
 import os
+import pickle
+from functools import partial
 
-import numpy as np
-from scipy.special import comb as scipy_comb
-import matplotlib.pyplot as plt
-import scipy.optimize
-import scipy.interpolate
-import scipy.signal
-import tqdm
-import ternary
-from ternary.helpers import simplex_iterator
 import cvxopt
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.interpolate
+import scipy.optimize
+import scipy.signal
+import ternary
+import tqdm
+from scipy.special import comb as scipy_comb
+from ternary.helpers import simplex_iterator
 
 from src import model_specific_functions, config
 
@@ -587,8 +588,12 @@ def parallel_solver(
         chunk_size = 10
         parallel_num = 7
     else:
-        chunk_size = 100
-        parallel_num = min(os.cpu_count(), 25)
+        cpu_count = os.cpu_count()
+        parallel_num = min(cpu_count, 25)
+        if parallel_num > 12:
+            chunk_size = 500
+        else:
+            chunk_size = 100
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
@@ -689,11 +694,31 @@ def non_linear_main():
     parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     model_parameter_dict = model_specific_functions.model3_all_tissue()
     parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model7_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # fitting_result_display(**model_parameter_dict)
 
 
+def parser_main():
+    parameter_dict = {
+        'model1': model_specific_functions.model1_parameters(),
+        'model1_all': model_specific_functions.model1_all_tissue(),
+        'model1_m5': model_specific_functions.model1_m5_parameters(),
+        'model1_m9': model_specific_functions.model1_m9_parameters(),
+        'parameter': model_specific_functions.model1_parameter_sensitivity(),
+        'model3': model_specific_functions.model3_parameters(),
+        'model3_all': model_specific_functions.model3_all_tissue(),
+        'model5': model_specific_functions.model5_parameters(),
+        'model6': model_specific_functions.model6_parameters(),
+        'model7': model_specific_functions.model7_parameters()}
+    parser = argparse.ArgumentParser(description='MFA in the whole mouse by Shiyu Liu.')
+    parser.add_argument('model_name', choices=parameter_dict.keys())
+    parser.add_argument('-f', '--fitting_result', action='store_true', default=False)
+
+    args = parser.parse_args()
+    current_model_parameter_dict = parameter_dict[args.model_name]
+    parallel_solver(**current_model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    if args.fitting_result:
+        fitting_result_display(**current_model_parameter_dict)
+
+
 if __name__ == '__main__':
-    # linear_main()
-    non_linear_main()
+    parser_main()
