@@ -43,8 +43,16 @@ def dynamic_range_model12(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
+    def iter_parameter_generator_constructor(
+            _f1_free_flux, _g2_free_flux, _constant_flux_dict):
+        for f1_index, f1 in enumerate(_f1_free_flux):
+            for g2_index, g2 in enumerate(_g2_free_flux):
+                new_iter_parameter_dict = {
+                    'constant_flux_dict': {
+                        _f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2},
+                    'label': {'matrix_loc': (f1_index, g2_index)}}
+                new_iter_parameter_dict['constant_flux_dict'].update(_constant_flux_dict)
+                yield new_iter_parameter_dict
 
     balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
@@ -58,28 +66,21 @@ def dynamic_range_model12(
         name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = config.FreeVariable(
         name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
-
-    iter_parameter_list = []
-    matrix_loc_list = []
-    for f1_index, f1 in enumerate(f1_free_flux):
-        for g2_index, g2 in enumerate(g2_free_flux):
-            new_constant_flux_dict = dict(constant_flux_dict)
-            new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
-            var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
-            iter_parameter_list.append(var_parameter_dict)
-            matrix_loc_list.append((f1_index, g2_index))
+    total_iter_num = (f1_num + 1) * (g2_num + 1)
 
     const_parameter_dict = {
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
+        'max_flux_value': max_flux_value, 'iter_length': total_iter_num,
 
         'optimization_repeat_time': optimization_repeat_time,
-        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct
     }
+    iter_parameter_list = iter_parameter_generator_constructor(
+        f1_free_flux, g2_free_flux, constant_flux_dict)
     return const_parameter_dict, iter_parameter_list
 
 
@@ -87,14 +88,27 @@ def all_tissue_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
+    def iter_parameter_generator_constructor(
+            _f1_free_flux, _g2_free_flux, _model_parameter_dict_list):
+        for model_parameter_dict in _model_parameter_dict_list:
+            for f1_index, f1 in enumerate(_f1_free_flux):
+                for g2_index, g2 in enumerate(_g2_free_flux):
+                    new_iter_parameter_dict = model_parameter_dict.copy()
+                    new_iter_parameter_dict['constant_flux_dict'] = model_parameter_dict['constant_flux_dict'].copy()
+                    new_iter_parameter_dict['label'] = model_parameter_dict['label'].copy()
+                    new_iter_parameter_dict['constant_flux_dict'].update({
+                        _f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2})
+                    new_iter_parameter_dict['label']['matrix_loc'] = (f1_index, g2_index)
+                    yield new_iter_parameter_dict
+
     f1_free_flux = config.FreeVariable(
         name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = config.FreeVariable(
         name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    each_iter_num = (f1_num + 1) * (g2_num + 1)
+    total_iter_num = each_iter_num * len(model_mid_data_dict)
 
-    iter_parameter_list = []
+    model_parameter_dict_list = []
     for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
         balance_list, mid_constraint_list = model_construction_func(specific_tissue_mid_data_dict)
         flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
@@ -103,28 +117,25 @@ def all_tissue_model1(
             substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
             optimal_obj_value) = common_functions.mid_constraint_constructor(
             mid_constraint_list, complete_flux_dict)
-
-        for f1_index, f1 in enumerate(f1_free_flux):
-            for g2_index, g2 in enumerate(g2_free_flux):
-                new_constant_flux_dict = dict(constant_flux_dict)
-                new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
-                var_parameter_dict = {
-                    'flux_balance_matrix': flux_balance_matrix,
-                    'flux_balance_constant_vector': flux_balance_constant_vector,
-                    'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-                    'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-                    'constant_flux_dict': new_constant_flux_dict,
-                    'label': {'tissue': tissue_name, 'matrix_loc': (f1_index, g2_index)}}
-                iter_parameter_list.append(var_parameter_dict)
+        var_parameter_dict = {
+            'flux_balance_matrix': flux_balance_matrix,
+            'flux_balance_constant_vector': flux_balance_constant_vector,
+            'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+            'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+            'constant_flux_dict': constant_flux_dict,
+            'label': {'tissue': tissue_name}}
+        model_parameter_dict_list.append(var_parameter_dict)
 
     const_parameter_dict = {
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
         'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
 
         'optimization_repeat_time': optimization_repeat_time,
-        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct
     }
+    iter_parameter_list = iter_parameter_generator_constructor(
+        f1_free_flux, g2_free_flux, model_parameter_dict_list)
     return const_parameter_dict, iter_parameter_list
 
 
@@ -134,9 +145,21 @@ def parameter_sensitivity_model1(
         parameter_sampling_num, deviation_factor_dict,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
         **other_parameters):
-    def construct_iter_parameter_list(
-            _f1_free_flux, _g2_free_flux, _iter_parameter_list, _current_mid_data_dict, _constant_flux_dict,
-            _sample_type, _sample_index):
+    def iter_parameter_generator_constructor(
+            _f1_free_flux, _g2_free_flux, _model_parameter_dict_list):
+        for model_parameter_dict in _model_parameter_dict_list:
+            for f1_index, f1 in enumerate(_f1_free_flux):
+                for g2_index, g2 in enumerate(_g2_free_flux):
+                    new_iter_parameter_dict = model_parameter_dict.copy()
+                    new_iter_parameter_dict['constant_flux_dict'] = model_parameter_dict['constant_flux_dict'].copy()
+                    new_iter_parameter_dict['label'] = model_parameter_dict['label'].copy()
+                    new_iter_parameter_dict['constant_flux_dict'].update({
+                        _f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2})
+                    new_iter_parameter_dict['label']['matrix_loc'] = (f1_index, g2_index)
+                    yield new_iter_parameter_dict
+
+    def construct_model_parameter(
+            _current_mid_data_dict, _constant_flux_dict, _sample_type, _sample_index):
         balance_list, mid_constraint_list = model_construction_func(_current_mid_data_dict)
         flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
             balance_list, complete_flux_dict)
@@ -144,21 +167,32 @@ def parameter_sensitivity_model1(
             substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
             optimal_obj_value) = common_functions.mid_constraint_constructor(
             mid_constraint_list, complete_flux_dict)
-        for f1_index, f1 in enumerate(_f1_free_flux):
-            for g2_index, g2 in enumerate(_g2_free_flux):
-                new_constant_flux_dict = dict(_constant_flux_dict)
-                new_constant_flux_dict.update({_f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2})
-                var_parameter_dict = {
-                    'flux_balance_matrix': flux_balance_matrix,
-                    'flux_balance_constant_vector': flux_balance_constant_vector,
-                    'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
-                    'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-                    'constant_flux_dict': new_constant_flux_dict,
-                    'label': {
-                        'sample_type': _sample_type, 'sample_index': _sample_index,
-                        # 'matrix_loc': (f1_index, g2_index)
-                    }}
-                _iter_parameter_list.append(var_parameter_dict)
+        model_parameter_dict = {
+            'flux_balance_matrix': flux_balance_matrix,
+            'flux_balance_constant_vector': flux_balance_constant_vector,
+            'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+            'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+            'constant_flux_dict': _constant_flux_dict,
+            'label': {
+                'sample_type': _sample_type, 'sample_index': _sample_index,
+            }}
+        return model_parameter_dict
+
+    def model_parameter_generator_constructor(
+            _model_mid_data_dict, _mid_sigma, _flux_sigma):
+        for _sample_index in range(parameter_sampling_num):
+            _current_mid_data_dict = mid_perturbation(_model_mid_data_dict, _mid_sigma)
+            _model_parameter_dict = construct_model_parameter(
+                _current_mid_data_dict, constant_flux_dict, 'mid', _sample_index)
+            yield _model_parameter_dict
+        for _constant_flux_name, _constant_flux_value in constant_flux_dict.items():
+            for _sample_index in range(parameter_sampling_num):
+                _current_constant_flux_dict = dict(constant_flux_dict)
+                _current_constant_flux_dict[_constant_flux_name] = perturb_array(
+                    _constant_flux_value, _flux_sigma, 0, *deviation_factor_dict['flux'])
+                _model_parameter_dict = construct_model_parameter(
+                    _model_mid_data_dict, _current_constant_flux_dict, _constant_flux_name, _sample_index)
+                yield _model_parameter_dict
 
     def perturb_array(original_array, sigma, lower_bias, min_deviation_factor, max_deviation_factor):
         if isinstance(original_array, int) or isinstance(original_array, float):
@@ -182,28 +216,14 @@ def parameter_sensitivity_model1(
             new_mid_data_dict[mid_title] = new_array / np.sum(new_array)
         return new_mid_data_dict
 
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
     f1_free_flux = config.FreeVariable(
         name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = config.FreeVariable(
         name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    each_iter_num = (f1_num + 1) * (g2_num + 1)
+    total_iter_num = each_iter_num * parameter_sampling_num * (1 + len(constant_flux_dict))
     mid_sigma = sigma_dict['mid']
     flux_sigma = sigma_dict['flux']
-    iter_parameter_list = []
-    for sample_index in range(parameter_sampling_num):
-        current_mid_data_dict = mid_perturbation(model_mid_data_dict, mid_sigma)
-        construct_iter_parameter_list(
-            f1_free_flux, g2_free_flux, iter_parameter_list, current_mid_data_dict, constant_flux_dict,
-            'mid', sample_index)
-    for constant_flux_name, constant_flux_value in constant_flux_dict.items():
-        for sample_index in range(parameter_sampling_num):
-            current_constant_flux_dict = dict(constant_flux_dict)
-            current_constant_flux_dict[constant_flux_name] = perturb_array(
-                constant_flux_value, flux_sigma, 0, *deviation_factor_dict['flux'])
-            construct_iter_parameter_list(
-                f1_free_flux, g2_free_flux, iter_parameter_list, model_mid_data_dict, current_constant_flux_dict,
-                constant_flux_name, sample_index)
     sample_type_list = ['mid', *constant_flux_dict.keys()]
 
     const_parameter_dict = {
@@ -211,9 +231,13 @@ def parameter_sensitivity_model1(
         'max_flux_value': max_flux_value, 'sample_type_list': sample_type_list,
 
         'optimization_repeat_time': optimization_repeat_time,
-        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
+        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct
     }
+    model_parameter_dict_list = model_parameter_generator_constructor(
+        model_mid_data_dict, mid_sigma, flux_sigma)
+    iter_parameter_list = iter_parameter_generator_constructor(
+        f1_free_flux, g2_free_flux, model_parameter_dict_list)
     return const_parameter_dict, iter_parameter_list
 
 
@@ -244,6 +268,16 @@ def dynamic_range_model34(
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
         model_name, **other_parameters):
+    def iter_parameter_generator_constructor(
+            _free_fluxes_name_list, _constant_flux_dict, _free_flux_value_list):
+        for free_flux_value in _free_flux_value_list:
+            new_iter_parameter_dict = {
+                'constant_flux_dict': {
+                    flux_name: value for flux_name, value in zip(_free_fluxes_name_list, free_flux_value)}
+            }
+            new_iter_parameter_dict['constant_flux_dict'].update(_constant_flux_dict)
+            yield new_iter_parameter_dict
+
     sample = True
     point_num_each_axis = np.round(np.power(total_point_num, 1 / len(free_fluxes_name_list))).astype('int')
 
@@ -270,9 +304,12 @@ def dynamic_range_model34(
 
     # iter_parameter_list = []
     chunk_size = 1000
-    iter_parameter_list = parameter_generator_parallel(
-        constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
-        chunk_size, model_name)
+    # iter_parameter_list = parameter_generator_parallel(
+    #     constant_flux_dict, free_fluxes_name_list, free_flux_value_list, list_length, parallel_num,
+    #     chunk_size, model_name)
+    iter_parameter_list = iter_parameter_generator_constructor(
+        free_fluxes_name_list, constant_flux_dict, free_flux_value_list)
+    total_iter_num = total_point_num
 
     const_parameter_dict = {
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
@@ -284,6 +321,7 @@ def dynamic_range_model34(
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
         'free_fluxes_name_list': free_fluxes_name_list,
+        'iter_length': total_iter_num,
 
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
@@ -295,7 +333,7 @@ def all_tissue_model3(
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
         model_name, **other_parameters):
-    def iter_parameter_generator(
+    def iter_parameter_generator_constructor(
             _free_fluxes_name_list, _constant_flux_dict, _free_flux_value_list, _model_parameter_dict_list):
         for model_parameter_dict in _model_parameter_dict_list:
             for free_flux_value in _free_flux_value_list:
@@ -304,9 +342,6 @@ def all_tissue_model3(
                     flux_name: value for flux_name, value in zip(_free_fluxes_name_list, free_flux_value)}
                 new_iter_parameter_dict['constant_flux_dict'].update(_constant_flux_dict)
                 yield new_iter_parameter_dict
-
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
 
     free_flux_raw_list = [
         np.linspace(*free_fluxes_range, total_point_num) for free_fluxes_range in free_fluxes_range_list]
@@ -349,7 +384,7 @@ def all_tissue_model3(
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
 
-    iter_parameter_generator = iter_parameter_generator(
+    iter_parameter_generator = iter_parameter_generator_constructor(
         free_fluxes_name_list, constant_flux_dict, free_flux_value_list, model_parameter_dict_list)
     return const_parameter_dict, iter_parameter_generator
 
@@ -358,8 +393,6 @@ def dynamic_range_linear_model12(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         min_flux_value, max_flux_value, ratio_lb, ratio_ub,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
 
     balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
     flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
@@ -1046,6 +1079,9 @@ def final_processing_dynamic_range_linear_model12(
     matrix_loc_list = const_parameter_dict['matrix_loc_list']
     output_direct = const_parameter_dict['output_direct']
 
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
+
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     glucose_contri_matrix = np.zeros_like(valid_matrix)
 
@@ -1087,16 +1123,19 @@ def final_processing_dynamic_range_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
     g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
-    matrix_loc_list = const_parameter_dict['matrix_loc_list']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     glucose_contri_matrix = np.zeros_like(valid_matrix)
     objective_function_matrix = np.zeros_like(valid_matrix)
     well_fit_glucose_contri_list = []
 
-    for solver_result, processed_dict, matrix_loc in zip(result_list, processed_result_list, matrix_loc_list):
+    for solver_result, processed_dict, var_parameter_dict in zip(
+            result_list, processed_result_list, var_parameter_list):
+        matrix_loc = solver_result.label['matrix_loc']
         if processed_dict['valid']:
             valid_matrix[matrix_loc] = 1
             glucose_contri_matrix[matrix_loc] = processed_dict['glucose_contribution']
@@ -1158,6 +1197,8 @@ def final_processing_dynamic_range_model34(
     ternary_sigma = const_parameter_dict['ternary_sigma']
     ternary_resolution = const_parameter_dict['ternary_resolution']
     obj_tolerance = const_parameter_dict['obj_tolerance']
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
 
     valid_point_list = []
     invalid_point_list = []
@@ -1218,6 +1259,8 @@ def final_processing_dynamic_range_model5(
     output_direct = const_parameter_dict['output_direct']
     free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
     obj_tolerance = const_parameter_dict['obj_tolerance']
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
 
     valid_point_list = []
     invalid_point_list = []
@@ -1277,6 +1320,8 @@ def final_processing_all_tissue_model12(
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     tissue_name_list = const_parameter_dict['tissue_name_list']
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     valid_matrix_dict = {
@@ -1358,6 +1403,8 @@ def final_processing_all_tissue_model34(
     ternary_resolution = const_parameter_dict['ternary_resolution']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     tissue_name_list = const_parameter_dict['tissue_name_list']
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
 
     valid_point_dict = {tissue_name: [] for tissue_name in tissue_name_list}
     invalid_point_dict = {tissue_name: [] for tissue_name in tissue_name_list}
@@ -1440,6 +1487,8 @@ def final_processing_parameter_sensitivity_model1(
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     sample_type_list = const_parameter_dict['sample_type_list']
+    if not os.path.isdir(output_direct):
+        os.mkdir(output_direct)
 
     # valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     # valid_matrix_dict = {

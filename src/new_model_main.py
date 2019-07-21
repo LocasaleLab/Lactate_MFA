@@ -1,6 +1,7 @@
 import pickle
 import multiprocessing as mp
 from functools import partial
+import itertools as it
 import gzip
 import os
 
@@ -591,10 +592,13 @@ def parallel_solver(
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
-    try:
-        total_length = len(var_parameter_list)
-    except TypeError:
+
+    if not isinstance(var_parameter_list, list):
+        var_parameter_list, var_parameter_list2 = it.tee(var_parameter_list)
         total_length = const_parameter_dict['iter_length']
+    else:
+        var_parameter_list2 = var_parameter_list
+        total_length = len(var_parameter_list)
 
     with mp.Pool(processes=parallel_num) as pool:
         raw_result_iter = pool.imap(
@@ -610,10 +614,7 @@ def parallel_solver(
     result_iter, hook_result_iter = zip(*raw_result_list)
     result_list = list(result_iter)
     hook_result_list = list(hook_result_iter)
-    if not isinstance(var_parameter_list, list):
-        const_parameter_dict, var_parameter_list = parameter_construction_func(
-            parallel_num=parallel_num, model_name=model_name, **other_parameters)
-    hook_after_all_iterations(result_list, hook_result_list, const_parameter_dict, var_parameter_list)
+    hook_after_all_iterations(result_list, hook_result_list, const_parameter_dict, var_parameter_list2)
 
 
 #     output_data_dict = {
@@ -667,29 +668,29 @@ def linear_main():
 
 def non_linear_main():
     # model_parameter_dict = model_specific_functions.model1_parameters()
-    model_parameter_dict = model_specific_functions.model2_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model3_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model4_parameters()
-    model_parameter_dict = model_specific_functions.model5_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model6_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model7_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model1_all_tissue()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model1_m5_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model1_m9_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model3_all_tissue()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model2_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model3_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model5_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model6_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # model_parameter_dict = model_specific_functions.model7_parameters()
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model1_all_tissue()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model1_m5_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model1_m9_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model3_all_tissue()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    model_parameter_dict = model_specific_functions.model7_parameters()
+    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # fitting_result_display(**model_parameter_dict)
 
 
