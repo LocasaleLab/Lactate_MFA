@@ -1,6 +1,7 @@
+import warnings
+
 import xlrd
 import numpy as np
-import warnings
 
 kTissueList = ['Sr', 'AT', 'Br', 'Ht', 'Kd', 'Lg', 'Lv', 'Pc', 'SI', 'SkM', 'Sp']
 
