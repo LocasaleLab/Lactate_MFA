@@ -391,92 +391,6 @@ def all_tissue_model3(
     return const_parameter_dict, iter_parameter_generator
 
 
-def dynamic_range_linear_model12(
-        model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        min_flux_value, max_flux_value, ratio_lb, ratio_ub,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
-
-    balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
-    flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
-        balance_list, complete_flux_dict)
-    ratio_matrix, ratio_constant_vector = common_functions.flux_ratio_constraint_generator_linear_model(
-        mid_constraint_list, complete_flux_dict, ratio_lb, ratio_ub)
-    flux_balance_and_mid_ratio_matrix = np.vstack([flux_balance_matrix, ratio_matrix])
-    flux_balance_and_mid_ratio_constant_vector = np.hstack([flux_balance_constant_vector, ratio_constant_vector])
-
-    f1_free_flux = config.FreeVariable(
-        name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
-    g2_free_flux = config.FreeVariable(
-        name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
-
-    iter_parameter_list = []
-    matrix_loc_list = []
-    for f1_index, f1 in enumerate(f1_free_flux):
-        for g2_index, g2 in enumerate(g2_free_flux):
-            new_constant_flux_dict = dict(constant_flux_dict)
-            new_constant_flux_dict.update({f1_free_flux.flux_name: f1, g2_free_flux.flux_name: g2})
-            var_parameter_dict = {'constant_flux_dict': new_constant_flux_dict}
-            iter_parameter_list.append(var_parameter_dict)
-            matrix_loc_list.append((f1_index, g2_index))
-
-    const_parameter_dict = {
-        'flux_balance_and_mid_ratio_matrix': flux_balance_and_mid_ratio_matrix,
-        'flux_balance_and_mid_ratio_constant_vector': flux_balance_and_mid_ratio_constant_vector,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
-
-        'matrix_loc_list': matrix_loc_list, 'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
-        'output_direct': output_direct
-    }
-    return const_parameter_dict, iter_parameter_list
-
-
-def mid_data_loader_linear_model12(
-        data_collection_dict, label_list, source_tissue_marker, sink_tissue_marker):
-    mouse_num = len(data_collection_dict[label_list[0]])
-    glucose_natural_dist = common_functions.natural_dist(constant_set.c13_ratio, 6)
-    glucose_infused_dist = np.array([0, 0, 0, 0, 0, 0, 1], dtype='float')
-    mid_data_dict = {
-        'glc_source': common_functions.collect_all_data(
-            data_collection_dict, 'glucose', label_list, source_tissue_marker, mean=False),
-        'pyr_source': common_functions.collect_all_data(
-            data_collection_dict, 'pyruvate', label_list, source_tissue_marker, mean=False),
-        'lac_source': common_functions.collect_all_data(
-            data_collection_dict, 'lactate', label_list, source_tissue_marker, mean=False),
-        'glc_plasma': common_functions.collect_all_data(
-            data_collection_dict, 'glucose', label_list, constant_set.plasma_marker, mean=False),
-        'pyr_plasma': common_functions.collect_all_data(
-            data_collection_dict, 'pyruvate', label_list, constant_set.plasma_marker, mean=False),
-        'lac_plasma': common_functions.collect_all_data(
-            data_collection_dict, 'lactate', label_list, constant_set.plasma_marker, mean=False),
-        'glc_sink': common_functions.collect_all_data(
-            data_collection_dict, 'glucose', label_list, sink_tissue_marker, mean=False),
-        'pyr_sink': common_functions.collect_all_data(
-            data_collection_dict, 'pyruvate', label_list, sink_tissue_marker, mean=False),
-        'lac_sink': common_functions.collect_all_data(
-            data_collection_dict, 'lactate', label_list, sink_tissue_marker, mean=False),
-        'glc_natural': np.tile(glucose_natural_dist, mouse_num),
-        'glc_label': np.tile(glucose_infused_dist, mouse_num),
-        'pyr_to_glc_source': common_functions.collect_all_data(
-            data_collection_dict, 'pyruvate', label_list, source_tissue_marker, mean=False, convolve=True),
-        'glc_to_pyr_source': common_functions.collect_all_data(
-            data_collection_dict, 'glucose', label_list, source_tissue_marker, mean=False, split=3),
-        'pyr_to_glc_sink': common_functions.collect_all_data(
-            data_collection_dict, 'pyruvate', label_list, sink_tissue_marker, mean=False, convolve=True),
-        'glc_to_pyr_sink': common_functions.collect_all_data(
-            data_collection_dict, 'glucose', label_list, sink_tissue_marker, mean=False, split=3),
-        'glc_to_pyr_plasma': common_functions.collect_all_data(
-            data_collection_dict, 'glucose', label_list, constant_set.plasma_marker, mean=False, split=3),
-    }
-
-    for name, mid_vector in mid_data_dict.items():
-        if abs(np.sum(mid_vector) - mouse_num) > 0.001:
-            raise ValueError('Sum of MID is not 1: {}'.format(name))
-        mid_data_dict[name] += constant_set.eps_of_mid
-        mid_data_dict[name] /= np.sum(mid_data_dict[name])
-    return mid_data_dict
-
-
 def mid_data_loader_model1234(
         data_collection_dict, label_list, mouse_id_list, source_tissue_marker, sink_tissue_marker):
     mid_data_dict = {
@@ -974,18 +888,6 @@ def solve_glucose_contribution_model12(result_dict: dict):
     return glucose_ratio
 
 
-def result_processing_each_iteration_linear_model12(result: config.Result, **other_parameters):
-    processed_dict = {}
-    if result.success:
-        processed_dict['valid'] = True
-        glucose_contribution = solve_glucose_contribution_model12(result.result_dict)
-        processed_dict['glucose_contribution'] = glucose_contribution
-    else:
-        processed_dict['valid'] = False
-        processed_dict['glucose_contribution'] = -1
-    return processed_dict
-
-
 def result_processing_each_iteration_model12(result: config.Result, **other_parameters):
     processed_dict = {}
     # if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
@@ -1072,53 +974,6 @@ def model1_print_result(result_dict, constant_flux_dict):
     const_string_list = ["{} = {:.3f}".format(const_name, value) for const_name, value in constant_flux_dict.items()]
     print("Variables:\n{}\n".format("\n".join(var_string_list)))
     print("Constants:\n{}".format("\n".join(const_string_list)))
-
-
-def final_processing_dynamic_range_linear_model12(
-        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
-    matrix_loc_list = const_parameter_dict['matrix_loc_list']
-    output_direct = const_parameter_dict['output_direct']
-
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-
-    valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
-    glucose_contri_matrix = np.zeros_like(valid_matrix)
-
-    for solver_result, processed_dict, matrix_loc in zip(result_list, processed_result_list, matrix_loc_list):
-        if processed_dict['valid']:
-            valid_matrix[matrix_loc] = 1
-            glucose_contri_matrix[matrix_loc] = processed_dict['glucose_contribution']
-        else:
-            valid_matrix[matrix_loc] = 0
-            glucose_contri_matrix[matrix_loc] = np.nan
-
-    common_functions.plot_heat_map(
-        valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
-    common_functions.plot_heat_map(
-        glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-        cbar_name='Glucose Contribution', save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
-
-    glucose_contribution_array = glucose_contri_matrix.reshape([-1])
-    glucose_contribution_array = glucose_contribution_array[glucose_contribution_array != np.nan]
-    common_functions.plot_violin_distribution(
-        {'normal': np.array(glucose_contribution_array)},
-        {'normal': color_set.blue},
-        save_path="{}/glucose_contribution_violin.png".format(output_direct))
-
-    output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-        'valid_matrix': valid_matrix,
-        'glucose_contri_matrix': glucose_contri_matrix,
-    }
-    with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(output_data_dict, f_out)
-
-    if test_running:
-        plt.show()
 
 
 def final_processing_dynamic_range_model12(
@@ -1857,44 +1712,6 @@ def model7_parameters():
     else:
         total_point_num = int(3e6)
         ternary_resolution = int(2 ** 8)
-
-    return locals()
-
-
-def linear_model1_parameters():
-    model_name = "linear_model1"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"],  # 'mouse_id_list': None,
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_linear_model12, data_collection_kwargs)
-    hook_in_each_iteration = result_processing_each_iteration_linear_model12
-    hook_after_all_iterations = final_processing_dynamic_range_linear_model12
-    model_construction_func = model1_construction
-    parameter_construction_func = dynamic_range_linear_model12
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-
-    min_flux_value = 1
-    max_flux_value = 5000
-    ratio_lb = 0.1
-    ratio_ub = 0.9
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test_running:
-        f1_num = 101
-        f1_display_interv = 50
-        g2_num = 101
-        g2_display_interv = 50
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
 
     return locals()
 

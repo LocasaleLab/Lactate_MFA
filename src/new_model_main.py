@@ -13,7 +13,6 @@ import scipy.optimize
 import scipy.signal
 import ternary
 import tqdm
-import cvxopt
 from scipy.special import comb as scipy_comb
 from ternary.helpers import simplex_iterator
 
@@ -73,87 +72,6 @@ def collect_all_data(
         return result_matrix.mean(axis=1)
     else:
         return result_matrix.transpose().reshape([-1])
-
-
-def solve_two_ratios(source_vector_list, target_vector, ratio_lb, ratio_ub):
-    source_vector1, source_vector2 = source_vector_list
-    if not (len(source_vector1) == len(source_vector2) == len(target_vector)):
-        raise ValueError("Length of 3 vectors are not equal !!!")
-    a = (source_vector1 - source_vector2).reshape([-1, 1])
-    b = target_vector - source_vector2
-    result = np.linalg.lstsq(a, b)
-    coeff = result[0][0]
-    modified_coeff = min(max(ratio_lb, coeff), ratio_ub)
-    return [modified_coeff, 1 - modified_coeff]
-
-
-def solve_multi_ratios(source_vector_list, target_vector, ratio_lb, ratio_ub):
-    var_num = len(source_vector_list)
-    cvx_matrix = cvxopt.matrix
-    raw_matrix_a = np.array(source_vector_list, dtype='float64').transpose()
-    raw_vector_b = target_vector.reshape([-1, 1])
-    matrix_p = cvx_matrix(raw_matrix_a.T @ raw_matrix_a)
-    vector_q = -cvx_matrix(raw_matrix_a.T @ raw_vector_b)
-
-    matrix_g = cvx_matrix(np.vstack([-1 * np.identity(var_num), np.identity(var_num)]))
-    matrix_h = cvx_matrix(np.vstack([np.ones([var_num, 1]) * ratio_lb, np.ones([var_num, 1]) * ratio_ub]))
-    matrix_a = cvx_matrix(np.ones([1, var_num]))
-    matrix_b = cvx_matrix(np.ones([1, 1]))
-
-    result = cvxopt.solvers.qp(matrix_p, vector_q, matrix_g, matrix_h, matrix_a, matrix_b)
-    result_array = np.array(result['x'])
-    return result_array.reshape([-1])
-
-
-def flux_ratio_constraint_generator_linear_model(mid_constraint_list, complete_flux_dict, ratio_lb, ratio_ub):
-    ratio_matrix_list = []
-    constant_vector_list = []
-    complete_var_num = len(complete_flux_dict)
-    for mid_constraint_dict in mid_constraint_list:
-        target_mid_vector = mid_constraint_dict[constant_set.target_label]
-        source_mid_vector_list = []
-        source_flux_index_list = []
-        for flux_name, vector in mid_constraint_dict.items():
-            if flux_name == constant_set.target_label:
-                continue
-            source_flux_index_list.append(complete_flux_dict[flux_name])
-            source_mid_vector_list.append(vector)
-        if len(source_mid_vector_list) == 2:
-            solver = solve_two_ratios
-        else:
-            solver = solve_multi_ratios
-        coeff_list = solver(source_mid_vector_list, target_mid_vector, ratio_lb, ratio_ub)
-        basic_ratio = coeff_list[0]
-        basic_flux_index = source_flux_index_list[0]
-        for index in range(1, len(coeff_list)):
-            current_ratio = coeff_list[index]
-            current_flux_index = source_flux_index_list[index]
-            new_ratio_constraint_vector = np.zeros(complete_var_num)
-            new_ratio_constraint_vector[basic_flux_index] = current_ratio
-            new_ratio_constraint_vector[current_flux_index] = -basic_ratio
-            ratio_matrix_list.append(new_ratio_constraint_vector)
-            constant_vector_list.append(0)
-    ratio_matrix = np.array(ratio_matrix_list)
-    constant_vector = np.array(constant_vector_list)
-    return ratio_matrix, constant_vector
-
-
-def gradient_validation(function_value_func, jacobian_func, test_vector: np.ndarray):
-    derivative_from_jacobian_func = jacobian_func(test_vector)
-    variation_rate = 1e-3
-    derivative_from_function = np.zeros_like(test_vector)
-    for index, value in enumerate(test_vector):
-        variation_value = max(abs(value) * variation_rate, 1e-5)
-        high_test_vector = test_vector.copy()
-        high_test_vector[index] += variation_value
-        high_function_value = function_value_func(high_test_vector)
-        low_test_vector = test_vector.copy()
-        low_test_vector[index] -= variation_value
-        low_function_value = function_value_func(low_test_vector)
-        current_gradient = (high_function_value - low_function_value) / (2 * variation_value)
-        derivative_from_function[index] = current_gradient
-    print("Derivation from Jacobian function: {}".format(derivative_from_jacobian_func))
-    print("Derivation from original function: {}".format(derivative_from_function))
 
 
 def flux_balance_constraint_constructor(balance_list, complete_flux_dict):
@@ -275,35 +193,6 @@ def start_point_generator(
                 break
             failed_time += 1
     return result
-
-
-def one_case_solver_linear(
-        flux_balance_and_mid_ratio_matrix, flux_balance_and_mid_ratio_constant_vector,
-        complete_flux_dict, constant_flux_dict, min_flux_value, max_flux_value, label=None,
-        **other_parameters):
-    def is_valid_solution(solution_vector, min_value, max_value):
-        return np.all(solution_vector > min_value) and np.all(solution_vector < max_value)
-
-    constant_flux_matrix, constant_constant_vector = constant_flux_constraint_constructor(
-        constant_flux_dict, complete_flux_dict)
-    complete_balance_and_mid_matrix = np.vstack(
-        [flux_balance_and_mid_ratio_matrix, constant_flux_matrix])
-    complete_balance_and_mid_vector = np.hstack(
-        [flux_balance_and_mid_ratio_constant_vector, constant_constant_vector])
-
-    result_dict = {}
-    success = False
-    try:
-        current_result = np.linalg.solve(complete_balance_and_mid_matrix, complete_balance_and_mid_vector)
-    except np.linalg.LinAlgError:
-        pass
-    else:
-        if is_valid_solution(current_result, min_flux_value, max_flux_value):
-            result_dict = {
-                flux_name: flux_value for flux_name, flux_value
-                in zip(complete_flux_dict.keys(), current_result.x)}
-            success = True
-    return config.Result(result_dict, 0, success, 0, label)
 
 
 def one_case_solver_slsqp(
@@ -666,11 +555,6 @@ def fitting_result_display(
         plt.show()
 
 
-def linear_main():
-    model_parameter_dict = model_specific_functions.linear_model1_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_linear)
-
-
 def non_linear_main():
     # model_parameter_dict = model_specific_functions.model1_parameters()
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
@@ -690,11 +574,12 @@ def non_linear_main():
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # model_parameter_dict = model_specific_functions.model1_m5_parameters()
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    model_parameter_dict = model_specific_functions.model1_m9_parameters()
-    parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    # model_parameter_dict = model_specific_functions.model1_m9_parameters()
+    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # model_parameter_dict = model_specific_functions.model3_all_tissue()
     # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     # fitting_result_display(**model_parameter_dict)
+    pass
 
 
 def parser_main():
