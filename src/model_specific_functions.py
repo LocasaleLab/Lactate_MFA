@@ -13,8 +13,6 @@ from scipy.stats import truncnorm
 from src import new_model_main as common_functions, data_parser, config
 
 constant_set = config.Constants()
-if not os.path.isdir(constant_set.output_direct):
-    os.mkdir(constant_set.output_direct)
 color_set = config.Color()
 test_running = config.test_running
 

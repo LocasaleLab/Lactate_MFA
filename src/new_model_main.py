@@ -478,7 +478,7 @@ def parallel_solver(
         parallel_num = 7
     else:
         cpu_count = os.cpu_count()
-        parallel_num = min(cpu_count, 32)
+        parallel_num = min(cpu_count, 16)
         if parallel_num > 12:
             chunk_size = 100
         else:
@@ -508,6 +508,8 @@ def parallel_solver(
     result_iter, hook_result_iter = zip(*raw_result_list)
     result_list = list(result_iter)
     hook_result_list = list(hook_result_iter)
+    if not os.path.isdir(constant_set.output_direct):
+        os.mkdir(constant_set.output_direct)
     hook_after_all_iterations(result_list, hook_result_list, const_parameter_dict, var_parameter_list2)
 
 
@@ -524,7 +526,7 @@ def fitting_result_display(
         model_mid_data_dict, model_name, model_construction_func, obj_tolerance,
         **other_parameters):
     server_data = False
-    total_output_direct = "new_models"
+    total_output_direct = constant_set.output_direct
 
     balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
 
@@ -584,22 +586,22 @@ def non_linear_main():
 
 def parser_main():
     parameter_dict = {
-        'model1': model_specific_functions.model1_parameters(),
-        'model1_all': model_specific_functions.model1_all_tissue(),
-        'model1_m5': model_specific_functions.model1_m5_parameters(),
-        'model1_m9': model_specific_functions.model1_m9_parameters(),
-        'parameter': model_specific_functions.model1_parameter_sensitivity(),
-        'model3': model_specific_functions.model3_parameters(),
-        'model3_all': model_specific_functions.model3_all_tissue(),
-        'model5': model_specific_functions.model5_parameters(),
-        'model6': model_specific_functions.model6_parameters(),
-        'model7': model_specific_functions.model7_parameters()}
-    parser = argparse.ArgumentParser(description='MFA in the whole mouse by Shiyu Liu.')
+        'model1': model_specific_functions.model1_parameters,
+        'model1_all': model_specific_functions.model1_all_tissue,
+        'model1_m5': model_specific_functions.model1_m5_parameters,
+        'model1_m9': model_specific_functions.model1_m9_parameters,
+        'parameter': model_specific_functions.model1_parameter_sensitivity,
+        'model3': model_specific_functions.model3_parameters,
+        'model3_all': model_specific_functions.model3_all_tissue,
+        'model5': model_specific_functions.model5_parameters,
+        'model6': model_specific_functions.model6_parameters,
+        'model7': model_specific_functions.model7_parameters}
+    parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument('model_name', choices=parameter_dict.keys())
     parser.add_argument('-f', '--fitting_result', action='store_true', default=False)
 
     args = parser.parse_args()
-    current_model_parameter_dict = parameter_dict[args.model_name]
+    current_model_parameter_dict = parameter_dict[args.model_name]()
     parallel_solver(**current_model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     if args.fitting_result:
         fitting_result_display(**current_model_parameter_dict)
