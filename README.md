@@ -17,7 +17,7 @@ This software is developed and tested on Python 3.6. It also relies on following
 | `python-ternary`  | 1.0 |
 | `xlrd`  | 1.1 |
 
-For convenience, an out-of-the-box Docker image is provided to run this code. This docker image is tested on `docker-ce` in Ubuntu with Docker version `19.03.1`.
+For convenience, an out-of-the-box Docker image is provided to run this code. This docker image is tested on `docker-ce` in Ubuntu with Docker version `19.03.1`. (See Usages part for details.)
 
 ## Usages
 
