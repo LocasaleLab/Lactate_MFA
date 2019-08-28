@@ -14,7 +14,6 @@ from src import new_model_main as common_functions, data_parser, config
 
 constant_set = config.Constants()
 color_set = config.Color()
-test_running = config.test_running
 
 
 def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
@@ -1041,8 +1040,7 @@ def final_processing_dynamic_range_model12(
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    if test_running:
-        plt.show()
+    plt.show()
 
 
 def final_processing_dynamic_range_model34(
@@ -1105,8 +1103,7 @@ def final_processing_dynamic_range_model34(
     # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
     # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
 
-    if test_running:
-        plt.show()
+    plt.show()
 
 
 def final_processing_dynamic_range_model5(
@@ -1164,8 +1161,7 @@ def final_processing_dynamic_range_model5(
         cutoff=obj_tolerance,
         save_path="{}/objective_function_diff_violin.png".format(output_direct))
 
-    if test_running:
-        plt.show()
+    plt.show()
 
 
 def final_processing_all_tissue_model12(
@@ -1246,8 +1242,7 @@ def final_processing_all_tissue_model12(
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    if test_running:
-        plt.show()
+    plt.show()
 
 
 def final_processing_all_tissue_model34(
@@ -1331,8 +1326,7 @@ def final_processing_all_tissue_model34(
     # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
     # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
 
-    if test_running:
-        plt.show()
+    plt.show()
 
 
 def final_processing_parameter_sensitivity_model1(
@@ -1408,11 +1402,10 @@ def final_processing_parameter_sensitivity_model1(
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    if test_running:
-        plt.show()
+    plt.show()
 
 
-def model1_parameters():
+def model1_parameters(test=False):
     model_name = "model1"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1437,7 +1430,7 @@ def model1_parameters():
     obj_tolerance = 0.1
     f1_range = [1, 150]
     g2_range = [1, 150]
-    if test_running:
+    if test:
         f1_num = 51
         f1_display_interv = 50
         g2_num = 51
@@ -1450,7 +1443,7 @@ def model1_parameters():
     return locals()
 
 
-def model2_parameters():
+def model2_parameters(test=False):
     model_name = "model2"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1477,7 +1470,7 @@ def model2_parameters():
     f1_range = [min_flux_value, max_free_flux_value]
     g2_range = [min_flux_value, max_free_flux_value]
 
-    if test_running:
+    if test:
         f1_num = 101
         f1_display_interv = 100
         g2_num = 101
@@ -1491,7 +1484,7 @@ def model2_parameters():
     return locals()
 
 
-def model3_parameters():
+def model3_parameters(test=False):
     model_name = "model3"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1525,7 +1518,7 @@ def model3_parameters():
         [min_flux_value, constant_flux_dict['Fcirc_lac']],
     ]
 
-    if test_running:
+    if test:
         total_point_num = int(3e3)
         ternary_resolution = int(2 ** 7)
     else:
@@ -1535,7 +1528,7 @@ def model3_parameters():
     return locals()
 
 
-def model4_parameters():
+def model4_parameters(test=False):
     model_name = "model4"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1569,7 +1562,7 @@ def model4_parameters():
         [min_flux_value, constant_flux_dict['Fcirc_pyr']],
         [min_flux_value, constant_flux_dict['Fcirc_lac']],
     ]
-    if test_running:
+    if test:
         total_point_num = int(3e3)
         # point_interval_list = [50, 50, 20, 20, 100]
         ternary_resolution = int(2 ** 7)
@@ -1581,7 +1574,7 @@ def model4_parameters():
     return locals()
 
 
-def model5_parameters():
+def model5_parameters(test=False):
     model_name = "model5"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1616,7 +1609,7 @@ def model5_parameters():
         [min_flux_value, constant_flux_dict['Fcirc_lac']],
     ]
 
-    if test_running:
+    if test:
         total_point_num = int(3e3)
         # point_interval_list = [50, 50, 20, 20, 100]
         ternary_resolution = int(2 ** 7)
@@ -1628,7 +1621,7 @@ def model5_parameters():
     return locals()
 
 
-def model6_parameters():
+def model6_parameters(test=False):
     model_name = "model6"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1655,7 +1648,7 @@ def model6_parameters():
     f1_range = [min_flux_value, max_free_flux_value]
     g2_range = [min_flux_value, max_free_flux_value]
 
-    if test_running:
+    if test:
         f1_num = 101
         f1_display_interv = 100
         g2_num = 101
@@ -1669,7 +1662,7 @@ def model6_parameters():
     return locals()
 
 
-def model7_parameters():
+def model7_parameters(test=False):
     model_name = "model7"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1704,7 +1697,7 @@ def model7_parameters():
         [min_flux_value, constant_flux_dict['Fcirc_lac']],
     ]
 
-    if test_running:
+    if test:
         total_point_num = int(3e3)
         ternary_resolution = int(2 ** 7)
     else:
@@ -1714,7 +1707,7 @@ def model7_parameters():
     return locals()
 
 
-def model1_all_tissue():
+def model1_all_tissue(test=False):
     model_name = "model1_all_tissue"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1743,7 +1736,7 @@ def model1_all_tissue():
     obj_tolerance = 0.1
     f1_range = [1, 150]
     g2_range = [1, 150]
-    if test_running:
+    if test:
         f1_num = 31
         f1_display_interv = 30
         g2_num = 31
@@ -1757,7 +1750,7 @@ def model1_all_tissue():
     return locals()
 
 
-def model1_parameter_sensitivity():
+def model1_parameter_sensitivity(test=False):
     model_name = "model1_parameter_sensitivity"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1784,7 +1777,7 @@ def model1_parameter_sensitivity():
     sigma_dict = {'mid': 0.5, 'flux': 0.5}
     f1_range = [1, 150]
     g2_range = [1, 150]
-    if test_running:
+    if test:
         f1_num = 21
         f1_display_interv = 20
         g2_num = 21
@@ -1800,7 +1793,7 @@ def model1_parameter_sensitivity():
     return locals()
 
 
-def model1_m5_parameters():
+def model1_m5_parameters(test=False):
     model_name = "model1_m5"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1825,7 +1818,7 @@ def model1_m5_parameters():
     obj_tolerance = 0.1
     f1_range = [1, 150]
     g2_range = [1, 150]
-    if test_running:
+    if test:
         f1_num = 51
         f1_display_interv = 50
         g2_num = 51
@@ -1838,7 +1831,7 @@ def model1_m5_parameters():
     return locals()
 
 
-def model1_m9_parameters():
+def model1_m9_parameters(test=False):
     model_name = "model1_m9"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1863,7 +1856,7 @@ def model1_m9_parameters():
     obj_tolerance = 0.1
     f1_range = [1, 150]
     g2_range = [1, 150]
-    if test_running:
+    if test:
         f1_num = 51
         f1_display_interv = 50
         g2_num = 51
@@ -1876,7 +1869,7 @@ def model1_m9_parameters():
     return locals()
 
 
-def model3_all_tissue():
+def model3_all_tissue(test=False):
     model_name = "model3_all_tissue"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
@@ -1917,7 +1910,7 @@ def model3_all_tissue():
         [min_flux_value, constant_flux_dict['Fcirc_lac']],
     ]
 
-    if test_running:
+    if test:
         total_point_num = int(1e2)
         ternary_resolution = int(2 ** 7)
     else:

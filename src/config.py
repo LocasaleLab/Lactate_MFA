@@ -3,11 +3,6 @@ import platform
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
-if platform.node() == 'BaranLiu-PC':
-    test_running = True
-else:
-    test_running = False
-
 
 class Result(object):
     def __init__(

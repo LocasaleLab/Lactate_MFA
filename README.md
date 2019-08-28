@@ -29,7 +29,7 @@ MODEL=model1_m5
 TARGET_PATH=/your/path/to/output
 cd $TARGET_PATH
 docker run -it --rm --name python_$MODEL -v `pwd`:/lactate_exchange/new_models \
-  -e PARAM=$MODEL locasalelab/lactate_mfa:latest;
+  -e PARAM=$MODEL locasalelab/lactate_mfa:latest
 ```
 
 In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. TAKE CARE that the target path would be visited as root account in container! 
@@ -52,9 +52,11 @@ python src/new_model_main.py $MODEL
 
 Similar with Docker, you could modify the value of `MODEL` to the name of your target model. Final results will be written to the `new_models` folder in current directory. Available model name is listed in following section.
 
+This code will run for several hours. To prevent 
+
 ### List of models
 
-|   Model name in this script |  Model name in methods | Source tissue | Sink tissue | Circulatory metabolites| Data |  Description |
+|   Model name in this script |  Model name in methods | Source tissue | Sink tissue | Circulatory metabolites| Data source |  Description |
 |  ----  | ----  |  ----  |  ----  | ----  |  ----  |  ----  |
 | `model1`  | Model A | Liver | Heart | Glucose; Lactate | Low-infusion data: mouse M1 | Basic two-tissue model. |
 | `model1_all`  | Model A | Liver | All 8 tissues | Glucose; Lactate | Low-infusion data: mouse M1 | Basic two-tissue model with different sink tissues. |

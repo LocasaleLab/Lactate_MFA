@@ -20,7 +20,6 @@ from src import model_specific_functions, config
 
 constant_set = config.Constants()
 color_set = config.Color()
-test_running = config.test_running
 
 
 def natural_dist(_c13_ratio, carbon_num):
@@ -473,16 +472,17 @@ def parallel_solver(
     # q = manager.Queue()
     # result = pool.map_async(task, [(x, q) for x in range(10)])
 
-    if test_running:
-        chunk_size = 40
-        parallel_num = 7
+    cpu_count = os.cpu_count()
+    if cpu_count < 10:
+        parallel_num = cpu_count - 1
     else:
-        cpu_count = os.cpu_count()
         parallel_num = min(cpu_count, 16)
-        if parallel_num > 12:
-            chunk_size = 100
-        else:
-            chunk_size = 80
+    if parallel_num < 8:
+        chunk_size = 40
+    elif parallel_num < 13:
+        chunk_size = 80
+    else:
+        chunk_size = 100
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
@@ -598,10 +598,11 @@ def parser_main():
         'model7': model_specific_functions.model7_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument('model_name', choices=parameter_dict.keys())
+    parser.add_argument('-t', '--test', action='store_true', default=False)
     parser.add_argument('-f', '--fitting_result', action='store_true', default=False)
 
     args = parser.parse_args()
-    current_model_parameter_dict = parameter_dict[args.model_name]()
+    current_model_parameter_dict = parameter_dict[args.model_name](args.test)
     parallel_solver(**current_model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     if args.fitting_result:
         fitting_result_display(**current_model_parameter_dict)
