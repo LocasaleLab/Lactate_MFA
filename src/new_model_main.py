@@ -598,7 +598,7 @@ def parser_main():
         'model7': model_specific_functions.model7_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument('model_name', choices=parameter_dict.keys())
-    parser.add_argument('-t', '--test', action='store_true', default=False)
+    parser.add_argument('-t', '--test_mode', action='store_true', default=False)
     parser.add_argument('-f', '--fitting_result', action='store_true', default=False)
 
     args = parser.parse_args()

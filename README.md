@@ -28,11 +28,11 @@ First install an appropriate Docker version ([see here for details](https://docs
 MODEL=model1_m5
 TARGET_PATH=/your/path/to/output
 cd $TARGET_PATH
-docker run -it --rm --name python_$MODEL -v `pwd`:/lactate_exchange/new_models \
-  -e PARAM=$MODEL locasalelab/lactate_mfa:latest
+docker run -it --rm --name python_$MODEL -v `pwd`:/Lactate_MFA/new_models \
+  locasalelab/lactate_mfa:latest $MODEL --test_mode
 ```
 
-In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. TAKE CARE that the target path would be visited as root account in container! 
+In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. TAKE CARE that the target path would be visited as root account in container! The flag `--test_mode` makes the code run quickly in a test mode, and could be removed to run a formal mode. The formal running takes tens of hours.
 
 ### Raw Python
 
@@ -47,10 +47,10 @@ Switch to the source direct, add PYTHONPATH environment and run the `new_model_m
 ```shell script
 cd Lactate_MFA
 export PYTHONPATH=$PYTHONPATH:`pwd`
-python src/new_model_main.py $MODEL
+python src/new_model_main.py $MODEL --test_mode
 ```
 
-Similar with Docker, you could modify the value of `MODEL` to the name of your target model. Final results will be written to the `new_models` folder in current directory. Available model name is listed in following section.
+Similar with Docker, you could modify the value of `MODEL` to the name of your target model. Final results will be written to the `new_models` folder in current directory. Available model name is listed in following section. The flag `--test_mode` could also be removed to run a formal mode.
 
 This code will run for several hours. To prevent 
 
