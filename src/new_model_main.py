@@ -602,7 +602,7 @@ def parser_main():
     parser.add_argument('-f', '--fitting_result', action='store_true', default=False)
 
     args = parser.parse_args()
-    current_model_parameter_dict = parameter_dict[args.model_name](args.test)
+    current_model_parameter_dict = parameter_dict[args.model_name](args.test_mode)
     parallel_solver(**current_model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
     if args.fitting_result:
         fitting_result_display(**current_model_parameter_dict)
