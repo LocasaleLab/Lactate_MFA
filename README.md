@@ -32,9 +32,9 @@ docker run -it --rm --name python_$MODEL -v `pwd`:/Lactate_MFA/new_models \
   locasalelab/lactate_mfa:latest $MODEL --test_mode
 ```
 
-In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. TAKE CARE that the target path would be visited as root account in container! The flag `--test_mode` makes the code run quickly in a test mode, and could be removed to run a formal mode. The formal running takes tens of hours.
+In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. BE CAREFUL that the target path would be visited as root account in container! The flag `--test_mode` makes the code run quickly in a test mode, and could be removed to run a formal mode. The formal running takes tens of hours.
 
-### Raw Python
+### System Python intepreter
 
 This script could also be executed as a raw Python project. Make sure Python 3.6 and all required packages are correctly installed. First switch to a target directory and download the source code:
 

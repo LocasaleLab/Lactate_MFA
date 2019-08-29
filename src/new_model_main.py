@@ -467,22 +467,21 @@ def parallel_solver_single(
 
 def parallel_solver(
         parameter_construction_func, one_case_solver_func, hook_in_each_iteration, model_name,
-        hook_after_all_iterations, **other_parameters):
+        hook_after_all_iterations, parallel_num, **other_parameters):
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
     # result = pool.map_async(task, [(x, q) for x in range(10)])
 
-    cpu_count = os.cpu_count()
-    if cpu_count < 10:
-        parallel_num = cpu_count - 1
-    else:
-        parallel_num = min(cpu_count, 16)
+    if parallel_num is None:
+        cpu_count = os.cpu_count()
+        if cpu_count < 10:
+            parallel_num = cpu_count - 1
+        else:
+            parallel_num = min(cpu_count, 16)
     if parallel_num < 8:
         chunk_size = 40
-    elif parallel_num < 13:
-        chunk_size = 80
     else:
-        chunk_size = 100
+        chunk_size = 80
 
     const_parameter_dict, var_parameter_list = parameter_construction_func(
         parallel_num=parallel_num, model_name=model_name, **other_parameters)
@@ -557,33 +556,6 @@ def fitting_result_display(
         plt.show()
 
 
-def non_linear_main():
-    # model_parameter_dict = model_specific_functions.model1_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model2_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model3_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model5_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model6_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model7_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model1_all_tissue()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model1_parameter_sensitivity()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model1_m5_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model1_m9_parameters()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # model_parameter_dict = model_specific_functions.model3_all_tissue()
-    # parallel_solver(**model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
-    # fitting_result_display(**model_parameter_dict)
-    pass
-
-
 def parser_main():
     parameter_dict = {
         'model1': model_specific_functions.model1_parameters,
@@ -597,13 +569,22 @@ def parser_main():
         'model6': model_specific_functions.model6_parameters,
         'model7': model_specific_functions.model7_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
-    parser.add_argument('model_name', choices=parameter_dict.keys())
-    parser.add_argument('-t', '--test_mode', action='store_true', default=False)
-    parser.add_argument('-f', '--fitting_result', action='store_true', default=False)
+    parser.add_argument(
+        'model_name', choices=parameter_dict.keys(), help='The name of model you want to compute.')
+    parser.add_argument(
+        '-t', '--test_mode', action='store_true', default=False,
+        help='Whether the code is executed in test mode, which means less sample number and shorter time.')
+    parser.add_argument(
+        '-f', '--fitting_result', action='store_true', default=False,
+        help='Whether to show the fitting result near threshold.')
+    parser.add_argument(
+        '-p', '--parallel_num', type=int, default=None,
+        help='Number of parallel processes. If not provided, it will be selected according to CPU cores.')
 
     args = parser.parse_args()
     current_model_parameter_dict = parameter_dict[args.model_name](args.test_mode)
-    parallel_solver(**current_model_parameter_dict, one_case_solver_func=one_case_solver_slsqp)
+    parallel_solver(
+        **current_model_parameter_dict, parallel_num=args.parallel_num, one_case_solver_func=one_case_solver_slsqp)
     if args.fitting_result:
         fitting_result_display(**current_model_parameter_dict)
 
