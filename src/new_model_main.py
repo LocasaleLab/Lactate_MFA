@@ -466,7 +466,8 @@ def parallel_solver_single(
 
 
 def parallel_solver(
-        parameter_construction_func, one_case_solver_func, hook_in_each_iteration, model_name,
+        data_loader_func, parameter_construction_func,
+        one_case_solver_func, hook_in_each_iteration, model_name,
         hook_after_all_iterations, parallel_num, **other_parameters):
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
@@ -483,8 +484,10 @@ def parallel_solver(
     else:
         chunk_size = 80
 
+    model_mid_data_dict = data_loader_func(**other_parameters)
     const_parameter_dict, var_parameter_list = parameter_construction_func(
-        parallel_num=parallel_num, model_name=model_name, **other_parameters)
+        model_mid_data_dict=model_mid_data_dict, parallel_num=parallel_num, model_name=model_name,
+        **other_parameters)
 
     if not isinstance(var_parameter_list, list):
         var_parameter_list, var_parameter_list2 = it.tee(var_parameter_list)
@@ -562,11 +565,18 @@ def parser_main():
         'model1_all': model_specific_functions.model1_all_tissue,
         'model1_m5': model_specific_functions.model1_m5_parameters,
         'model1_m9': model_specific_functions.model1_m9_parameters,
+        'model1_lactate': model_specific_functions.model1_lactate_parameters,
+        'model1_lactate_m4': model_specific_functions.model1_lactate_m4_parameters,
+        'model1_lactate_m10': model_specific_functions.model1_lactate_m10_parameters,
+        'model1_lactate_m11': model_specific_functions.model1_lactate_m11_parameters,
         'parameter': model_specific_functions.model1_parameter_sensitivity,
         'model3': model_specific_functions.model3_parameters,
         'model3_all': model_specific_functions.model3_all_tissue,
         'model5': model_specific_functions.model5_parameters,
         'model6': model_specific_functions.model6_parameters,
+        'model6_m2': model_specific_functions.model6_m2_parameters,
+        'model6_m3': model_specific_functions.model6_m3_parameters,
+        'model6_m4': model_specific_functions.model6_m4_parameters,
         'model7': model_specific_functions.model7_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument(

@@ -1,4 +1,5 @@
 import os
+import warnings
 import itertools as it
 import gzip
 import pickle
@@ -16,10 +17,11 @@ constant_set = config.Constants()
 color_set = config.Color()
 
 
-def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
+def data_loader_rabinowitz(
+        data_collection_func, data_collection_kwargs,
+        experiment_name_prefix="Sup_Fig_5_fasted", **other_parameters):
     file_path = "{}/data_collection.xlsx".format(constant_set.data_direct)
-    experiment_name_prefix = "Sup_Fig_5_fasted"
-    label_list = ["glucose"]
+    label_list = data_collection_kwargs['label_list']
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
@@ -27,10 +29,11 @@ def data_loader_rabinowitz(data_collection_func, data_collection_kwargs):
     return model_mid_data_dict
 
 
-def data_loader_dan(data_collection_func, data_collection_kwargs):
+def data_loader_dan(
+        data_collection_func, data_collection_kwargs,
+        experiment_name_prefix="no_tumor", **other_parameters):
     file_path = "{}/data_collection_from_Dan.xlsx".format(constant_set.data_direct)
-    experiment_name_prefix = "no_tumor"
-    label_list = ["glucose"]
+    label_list = data_collection_kwargs['label_list']
     data_collection = data_parser.data_parser(file_path, experiment_name_prefix, label_list)
     data_collection = data_parser.data_checker(
         data_collection, ["glucose", "pyruvate", "lactate"], ["glucose", "pyruvate", "lactate"])
@@ -1018,7 +1021,7 @@ def final_processing_dynamic_range_model12(
         save_path="{}/filtered_objective_function.png".format(output_direct))
 
     if len(well_fit_glucose_contri_list) == 0:
-        raise ValueError('No point fit the constraint for contribution of carbon sources!')
+        warnings.warn('No point fit the constraint for contribution of carbon sources!')
     common_functions.plot_violin_distribution(
         {'normal': np.array(well_fit_glucose_contri_list)},
         {'normal': color_set.blue},
@@ -1331,19 +1334,12 @@ def final_processing_all_tissue_model34(
 
 def final_processing_parameter_sensitivity_model1(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     sample_type_list = const_parameter_dict['sample_type_list']
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
 
-    # valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
-    # valid_matrix_dict = {
-    #     sample_type: np.zeros_like(valid_matrix) for sample_type in sample_type_list}
-    # glucose_contri_matrix_dict = {
-    #     sample_type: np.zeros_like(valid_matrix) for sample_type in sample_type_list}
     objective_function_list_dict = {
         sample_type: [] for sample_type in sample_type_list}
     objective_function_median_dict = {
@@ -1358,7 +1354,6 @@ def final_processing_parameter_sensitivity_model1(
     for solver_result, processed_dict in zip(result_list, processed_result_list):
         sample_type = solver_result.label['sample_type']
         sample_index = solver_result.label['sample_index']
-        # matrix_loc = solver_result.label['matrix_loc']
         if processed_dict['valid']:
             if sample_index >= len(objective_function_list_dict[sample_type]):
                 objective_function_list_dict[sample_type].append([])
@@ -1394,8 +1389,6 @@ def final_processing_parameter_sensitivity_model1(
                 output_direct, sample_type))
 
     output_data_dict = {
-        # 'result_list': result_list,
-        # 'processed_result_list': processed_result_list,
         'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
         'objective_function_list_dict': objective_function_list_dict
     }
@@ -1412,7 +1405,9 @@ def model1_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_rabinowitz
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_processing_dynamic_range_model12
@@ -1450,7 +1445,9 @@ def model2_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_dan
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_processing_dynamic_range_model12
@@ -1491,7 +1488,9 @@ def model3_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_rabinowitz
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_processing_dynamic_range_model34
@@ -1535,7 +1534,9 @@ def model4_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_dan
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_processing_dynamic_range_model34
@@ -1582,7 +1583,9 @@ def model5_parameters(test=False):
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink1_tissue_marker': constant_set.heart_marker,
         'sink2_tissue_marker': constant_set.muscle_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model5, data_collection_kwargs)
+    data_loader_func = data_loader_rabinowitz
+    data_collection_func = mid_data_loader_model5
+    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model5, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model5
     hook_after_all_iterations = final_processing_dynamic_range_model5
@@ -1628,7 +1631,9 @@ def model6_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_dan
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_processing_dynamic_range_model12
@@ -1669,7 +1674,9 @@ def model7_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_dan
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_processing_dynamic_range_model34
@@ -1718,7 +1725,9 @@ def model1_all_tissue(test=False):
             constant_set.heart_marker, constant_set.brain_marker, constant_set.muscle_marker,
             constant_set.kidney_marker, constant_set.lung_marker, constant_set.pancreas_marker,
             constant_set.intestine_marker, constant_set.spleen_marker]}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_all_tissue, data_collection_kwargs)
+    data_loader_func = data_loader_rabinowitz
+    data_collection_func = mid_data_loader_all_tissue
+    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_all_tissue, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_processing_all_tissue_model12
@@ -1757,7 +1766,9 @@ def model1_parameter_sensitivity(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+    data_loader_func = data_loader_rabinowitz
+    data_collection_func = mid_data_loader_model1234
+    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model12
     hook_after_all_iterations = final_processing_parameter_sensitivity_model1
@@ -1800,35 +1811,13 @@ def model1_m5_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M5'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_dynamic_range_model12
-    model_construction_func = model1_construction
-    parameter_construction_func = dynamic_range_model12
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.1
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test:
-        f1_num = 51
-        f1_display_interv = 50
-        g2_num = 51
-        g2_display_interv = 50
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-    return locals()
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_parameter_dict
 
 
 def model1_m9_parameters(test=False):
@@ -1838,35 +1827,77 @@ def model1_m9_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M9'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_parameter_dict
 
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_dynamic_range_model12
-    model_construction_func = model1_construction
-    parameter_construction_func = dynamic_range_model12
 
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+def model1_lactate_parameters(test=False):
+    model_name = "model1_lactate"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
-    min_flux_value = 1
-    max_flux_value = 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.1
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test:
-        f1_num = 51
-        f1_display_interv = 50
-        g2_num = 51
-        g2_display_interv = 50
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-    return locals()
+    data_collection_kwargs = {
+        'label_list': ["lactate"], 'mouse_id_list': ['M3'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_parameter_dict
+
+
+def model1_lactate_m4_parameters(test=False):
+    model_name = "model1_lactate_m4"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["lactate"], 'mouse_id_list': ['M4'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_parameter_dict
+
+
+def model1_lactate_m10_parameters(test=False):
+    model_name = "model1_lactate_m10"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["lactate"], 'mouse_id_list': ['M10'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_parameter_dict
+
+
+def model1_lactate_m11_parameters(test=False):
+    model_name = "model1_lactate_m11"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["lactate"], 'mouse_id_list': ['M11'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_parameter_dict
 
 
 def model3_all_tissue(test=False):
@@ -1883,7 +1914,9 @@ def model3_all_tissue(test=False):
             constant_set.heart_marker, constant_set.brain_marker, constant_set.muscle_marker,
             constant_set.kidney_marker, constant_set.lung_marker, constant_set.pancreas_marker,
             constant_set.intestine_marker, constant_set.spleen_marker]}
-    model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_all_tissue, data_collection_kwargs)
+    data_loader_func = data_loader_rabinowitz
+    data_collection_func = mid_data_loader_all_tissue
+    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_all_tissue, data_collection_kwargs)
 
     hook_in_each_iteration = result_processing_each_iteration_model34
     hook_after_all_iterations = final_processing_all_tissue_model34
@@ -1918,3 +1951,60 @@ def model3_all_tissue(test=False):
         ternary_resolution = int(2 ** 8)
 
     return locals()
+
+
+def model6_m2_parameters(test=False):
+    model_name = "model6_m2"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M2'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    updated_parameter_dict = {
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs,
+        'obj_tolerance': 0.4
+    }
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update(updated_parameter_dict)
+
+    return model6_parameter_dict
+
+
+def model6_m3_parameters(test=False):
+    model_name = "model6_m3"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M3'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    updated_parameter_dict = {
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs,
+        'obj_tolerance': 0.4
+    }
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update(updated_parameter_dict)
+
+    return model6_parameter_dict
+
+
+def model6_m4_parameters(test=False):
+    model_name = "model6_m4"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    data_collection_kwargs = {
+        'label_list': ["glucose"], 'mouse_id_list': ['M4'],
+        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
+    updated_parameter_dict = {
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs,
+        'obj_tolerance': 0.25
+    }
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update(updated_parameter_dict)
+
+    return model6_parameter_dict

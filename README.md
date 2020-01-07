@@ -56,7 +56,7 @@ This code will run for several hours. To prevent
 
 ### List of models
 
-|   Model name in this script |  Model name in methods | Source tissue | Sink tissue | Circulatory metabolites| Data source |  Description |
+|   Model name in this script |  Model name in methods | Source tissue | Sink tissue | Circulating metabolites| Data source |  Description |
 |  ----  | ----  |  ----  |  ----  | ----  |  ----  |  ----  |
 | `model1`  | Model A | Liver | Heart | Glucose; Lactate | Low-infusion data: mouse M1 | Basic two-tissue model. |
 | `model1_all`  | Model A | Liver | All 8 tissues | Glucose; Lactate | Low-infusion data: mouse M1 | Basic two-tissue model with different sink tissues. |
