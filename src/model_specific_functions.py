@@ -44,7 +44,7 @@ def data_loader_dan(
 def dynamic_range_model12(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, fitted=True, **other_parameters):
     def iter_parameter_generator_constructor(
             _f1_free_flux, _g2_free_flux, _constant_flux_dict):
         for f1_index, f1 in enumerate(_f1_free_flux):
@@ -79,7 +79,8 @@ def dynamic_range_model12(
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
+        'fitted': fitted
     }
     iter_parameter_list = iter_parameter_generator_constructor(
         f1_free_flux, g2_free_flux, constant_flux_dict)
@@ -267,9 +268,9 @@ def parameter_generator_parallel(
 
 def dynamic_range_model34(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
+        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
-        model_name, **other_parameters):
+        fitted=True, **other_parameters):
     def iter_parameter_generator_constructor(
             _free_fluxes_name_list, _constant_flux_dict, _free_flux_value_list):
         for free_flux_value in _free_flux_value_list:
@@ -323,7 +324,7 @@ def dynamic_range_model34(
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
         'free_fluxes_name_list': free_fluxes_name_list,
-        'iter_length': total_iter_num,
+        'iter_length': total_iter_num, 'fitted': fitted,
 
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
@@ -1006,6 +1007,8 @@ def final_processing_dynamic_range_model12(
 
     filtered_obj_function_matrix = objective_function_matrix.copy()
     filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
+    filtered_obj_array = np.reshape(filtered_obj_function_matrix, [-1])
+    filtered_obj_array = filtered_obj_array[~np.isnan(filtered_obj_array)]
 
     common_functions.plot_heat_map(
         valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
@@ -1019,6 +1022,9 @@ def final_processing_dynamic_range_model12(
         filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
         cbar_name='Filtered objective difference',
         save_path="{}/filtered_objective_function.png".format(output_direct))
+    common_functions.plot_box_distribution(
+        {'normal': filtered_obj_array},
+        save_path="{}/filtered_objective_distribution.png".format(output_direct))
 
     if len(well_fit_glucose_contri_list) == 0:
         warnings.warn('No point fit the constraint for contribution of carbon sources!')
@@ -1036,6 +1042,7 @@ def final_processing_dynamic_range_model12(
         'glucose_contri_matrix': glucose_contri_matrix,
         'objective_function_matrix': objective_function_matrix,
         'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
+        'filtered_obj_array': filtered_obj_array
     }
 
     with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
@@ -1076,6 +1083,8 @@ def final_processing_dynamic_range_model34(
     if len(well_fit_three_contri_list) == 0:
         raise ValueError('No point fit the constraint for contribution of carbon sources!')
     contribution_matrix = np.array(well_fit_three_contri_list)
+    filtered_obj_array = np.array(obj_diff_value_list)
+    filtered_obj_array = filtered_obj_array[filtered_obj_array < obj_tolerance]
     raw_output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
@@ -1085,6 +1094,7 @@ def final_processing_dynamic_range_model34(
         'invalid_point_list': invalid_point_list,
         'contribution_matrix': contribution_matrix,
         'obj_diff_value_list': obj_diff_value_list,
+        'filtered_obj_array': filtered_obj_array,
         'well_fit_three_contri_list': well_fit_three_contri_list,
     }
 
@@ -1103,6 +1113,9 @@ def final_processing_dynamic_range_model34(
         {'normal': color_set.blue},
         cutoff=obj_tolerance,
         save_path="{}/objective_function_diff_violin.png".format(output_direct))
+    common_functions.plot_box_distribution(
+        {'normal': filtered_obj_array},
+        save_path="{}/filtered_objective_distribution.png".format(output_direct))
     # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
     # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
 
@@ -1136,6 +1149,8 @@ def final_processing_dynamic_range_model5(
 
     if len(well_fit_glucose_contri_list) == 0:
         raise ValueError('No point fit the constraint for contribution of carbon sources!')
+    filtered_obj_array = np.array(obj_diff_value_list)
+    filtered_obj_array = filtered_obj_array[filtered_obj_array < obj_tolerance]
     raw_output_data_dict = {
         'result_list': result_list,
         'processed_result_list': processed_result_list,
@@ -1144,6 +1159,7 @@ def final_processing_dynamic_range_model5(
         'valid_point_list': valid_point_list,
         'invalid_point_list': invalid_point_list,
         'obj_diff_value_list': obj_diff_value_list,
+        'filtered_obj_array': filtered_obj_array,
         'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
     }
     with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
@@ -1163,6 +1179,9 @@ def final_processing_dynamic_range_model5(
         {'normal': color_set.blue},
         cutoff=obj_tolerance,
         save_path="{}/objective_function_diff_violin.png".format(output_direct))
+    common_functions.plot_box_distribution(
+        {'normal': filtered_obj_array},
+        save_path="{}/filtered_objective_distribution.png".format(output_direct))
 
     plt.show()
 
@@ -1960,14 +1979,13 @@ def model6_m2_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M2'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    updated_parameter_dict = {
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update({
         'model_name': model_name,
         'output_direct': output_direct,
         'data_collection_kwargs': data_collection_kwargs,
         'obj_tolerance': 0.4
-    }
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update(updated_parameter_dict)
+    })
 
     return model6_parameter_dict
 
@@ -1979,14 +1997,13 @@ def model6_m3_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M3'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    updated_parameter_dict = {
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update({
         'model_name': model_name,
         'output_direct': output_direct,
         'data_collection_kwargs': data_collection_kwargs,
         'obj_tolerance': 0.4
-    }
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update(updated_parameter_dict)
+    })
 
     return model6_parameter_dict
 
@@ -1998,13 +2015,87 @@ def model6_m4_parameters(test=False):
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M4'],
         'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    updated_parameter_dict = {
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update({
         'model_name': model_name,
         'output_direct': output_direct,
         'data_collection_kwargs': data_collection_kwargs,
         'obj_tolerance': 0.25
-    }
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update(updated_parameter_dict)
+    })
 
     return model6_parameter_dict
+
+
+def model1_unfitted_parameters(test=False):
+    model_name = "model1_unfitted"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model1_parameter_dict = model1_parameters(test)
+    model1_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'fitted': False,
+        'obj_tolerance': 999999
+    })
+
+    return model1_parameter_dict
+
+
+def model3_unfitted_parameters(test=False):
+    model_name = "model3_unfitted"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model3_parameter_dict = model3_parameters(test)
+    model3_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'fitted': False,
+        'obj_tolerance': 999999
+    })
+
+    return model3_parameter_dict
+
+
+def model5_unfitted_parameters(test=False):
+    model_name = "model5_unfitted"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model5_parameter_dict = model5_parameters(test)
+    model5_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'fitted': False,
+        'obj_tolerance': 999999
+    })
+
+    return model5_parameter_dict
+
+
+def model6_unfitted_parameters(test=False):
+    model_name = "model6_unfitted"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'fitted': False,
+        'obj_tolerance': 999999
+    })
+
+    return model6_parameter_dict
+
+
+def model7_unfitted_parameters(test=False):
+    model_name = "model7_unfitted"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model7_parameter_dict = model7_parameters(test)
+    model7_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'fitted': False,
+        'obj_tolerance': 999999
+    })
+
+    return model7_parameter_dict

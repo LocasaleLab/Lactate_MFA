@@ -197,7 +197,7 @@ def start_point_generator(
 def one_case_solver_slsqp(
         flux_balance_matrix, flux_balance_constant_vector, substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
         optimal_obj_value, complete_flux_dict, constant_flux_dict, min_flux_value, max_flux_value,
-        optimization_repeat_time, label=None, **other_parameters):
+        optimization_repeat_time, label=None, fitted=True, **other_parameters):
     constant_flux_matrix, constant_constant_vector = constant_flux_constraint_constructor(
         constant_flux_dict, complete_flux_dict)
     complete_balance_matrix = np.vstack(
@@ -221,22 +221,28 @@ def one_case_solver_slsqp(
         obj_value = -1
         success = False
     else:
-        result_dict = {}
-        obj_value = 999999
-        success = False
-        # print("Find 1 feasible solution")
-        for _ in range(optimization_repeat_time):
-            start_vector = start_point_generator(
-                complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
-            current_result = scipy.optimize.minimize(
-                cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi_func,
-                constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bounds)  # 'disp': True,
-            if current_result.success and current_result.fun < obj_value:
-                result_dict = {
-                    flux_name: flux_value for flux_name, flux_value
-                    in zip(complete_flux_dict.keys(), current_result.x)}
-                obj_value = current_result.fun
-                success = current_result.success
+        if not fitted:
+            obj_value = cross_entropy_objective_func(start_vector)[0][0]
+            success = True
+            result_dict = {
+                flux_name: flux_value for flux_name, flux_value
+                in zip(complete_flux_dict.keys(), start_vector)}
+        else:
+            result_dict = {}
+            success = False
+            obj_value = 999999
+            for _ in range(optimization_repeat_time):
+                start_vector = start_point_generator(
+                    complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
+                current_result = scipy.optimize.minimize(
+                    cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi_func,
+                    constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bounds)  # 'disp': True,
+                if current_result.success and current_result.fun < obj_value:
+                    result_dict = {
+                        flux_name: flux_value for flux_name, flux_value
+                        in zip(complete_flux_dict.keys(), current_result.x)}
+                    obj_value = current_result.fun
+                    success = current_result.success
     return config.Result(result_dict, obj_value, success, optimal_obj_value, label)
 
 
@@ -257,28 +263,31 @@ def calculate_one_tissue_tca_contribution(input_net_flux_list):
     return real_flux_list
 
 
+def one_time_prediction(predicted_vector_dim, mid_constraint_dict, flux_value_dict):
+    predicted_vector = np.zeros(predicted_vector_dim)
+    total_flux_value = 0
+    for flux_name, mid_vector in mid_constraint_dict.items():
+        if flux_name == constant_set.target_label:
+            continue
+        else:
+            flux_value = flux_value_dict[flux_name]
+            total_flux_value += flux_value
+            predicted_vector += flux_value * mid_vector
+    predicted_vector /= total_flux_value
+    return predicted_vector
+
+
 def result_evaluation(
         result_dict, constant_dict, mid_constraint_list, target_diff, output_direct, common_name):
     flux_value_dict = dict(result_dict)
     flux_value_dict.update(constant_dict)
     for mid_constraint_dict in mid_constraint_list:
         target_vector = mid_constraint_dict[constant_set.target_label]
-        calculate_vector = np.zeros_like(target_vector)
-        total_flux_value = 1e-5
-        for flux_name, mid_vector in mid_constraint_dict.items():
-            if flux_name == constant_set.target_label:
-                continue
-            else:
-                flux_value = flux_value_dict[flux_name]
-                total_flux_value += flux_value
-                calculate_vector += flux_value * mid_vector
-        calculate_vector /= total_flux_value
-        # print("MID constraint: {}\nCalculated MID: {}\nTarget MID: {}\n".format(
-        #     mid_constraint_dict, calculate_vector, target_vector))
+        predicted_vector = one_time_prediction(len(target_vector), mid_constraint_dict, flux_value_dict)
         name = "_".join([name for name in mid_constraint_dict.keys() if name != 'target'])
         experimental_label = 'Experimental MID'
         predicted_label = 'Calculated MID'
-        plot_data_dict = {experimental_label: target_vector, predicted_label: calculate_vector}
+        plot_data_dict = {experimental_label: target_vector, predicted_label: predicted_vector}
         plot_color_dict = {experimental_label: color_set.blue, predicted_label: color_set.orange}
         save_path = "{}/{}_{}.png".format(output_direct, common_name, name)
         title = "{}_diff_{:.2f}".format(name, target_diff)
@@ -364,6 +373,19 @@ def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, save_path=N
     ax.set_xticklabels(tissue_label_list)
     if save_path:
         # print(save_path)
+        fig.savefig(save_path, dpi=fig.dpi)
+
+
+def plot_box_distribution(data_dict, save_path=None):
+    fig, ax = plt.subplots()
+    data_list_for_box = data_dict.values()
+    tissue_label_list = data_dict.keys()
+    x_axis_position = np.arange(1, len(tissue_label_list) + 1)
+
+    ax.boxplot(data_list_for_box, whis='range')
+    ax.set_xticks(x_axis_position)
+    ax.set_xticklabels(tissue_label_list)
+    if save_path:
         fig.savefig(save_path, dpi=fig.dpi)
 
 
@@ -569,15 +591,20 @@ def parser_main():
         'model1_lactate_m4': model_specific_functions.model1_lactate_m4_parameters,
         'model1_lactate_m10': model_specific_functions.model1_lactate_m10_parameters,
         'model1_lactate_m11': model_specific_functions.model1_lactate_m11_parameters,
+        'model1_unfitted': model_specific_functions.model1_unfitted_parameters,
         'parameter': model_specific_functions.model1_parameter_sensitivity,
         'model3': model_specific_functions.model3_parameters,
         'model3_all': model_specific_functions.model3_all_tissue,
+        'model3_unfitted': model_specific_functions.model3_unfitted_parameters,
         'model5': model_specific_functions.model5_parameters,
+        'model5_unfitted': model_specific_functions.model5_unfitted_parameters,
         'model6': model_specific_functions.model6_parameters,
         'model6_m2': model_specific_functions.model6_m2_parameters,
         'model6_m3': model_specific_functions.model6_m3_parameters,
         'model6_m4': model_specific_functions.model6_m4_parameters,
-        'model7': model_specific_functions.model7_parameters}
+        'model6_unfitted': model_specific_functions.model6_unfitted_parameters,
+        'model7': model_specific_functions.model7_parameters,
+        'model7_unfitted': model_specific_functions.model7_unfitted_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument(
         'model_name', choices=parameter_dict.keys(), help='The name of model you want to compute.')
