@@ -277,24 +277,18 @@ def one_time_prediction(predicted_vector_dim, mid_constraint_dict, flux_value_di
     return predicted_vector
 
 
-def result_evaluation(
-        result_dict, constant_dict, mid_constraint_list, target_diff, output_direct, common_name):
+def evaluation_for_one_flux(result_dict, constant_dict, mid_constraint_list, mid_size_dict):
     flux_value_dict = dict(result_dict)
     flux_value_dict.update(constant_dict)
+    predicted_mid_dict = {}
     for mid_constraint_dict in mid_constraint_list:
-        target_vector = mid_constraint_dict[constant_set.target_label]
-        predicted_vector = one_time_prediction(len(target_vector), mid_constraint_dict, flux_value_dict)
         name = "_".join([name for name in mid_constraint_dict.keys() if name != 'target'])
-        experimental_label = 'Experimental MID'
-        predicted_label = 'Calculated MID'
-        plot_data_dict = {experimental_label: target_vector, predicted_label: predicted_vector}
-        plot_color_dict = {experimental_label: color_set.blue, predicted_label: color_set.orange}
-        save_path = "{}/{}_{}.png".format(output_direct, common_name, name)
-        title = "{}_diff_{:.2f}".format(name, target_diff)
-        plot_raw_mid_bar(plot_data_dict, plot_color_dict, title, save_path)
+        predicted_vector = one_time_prediction(mid_size_dict[name], mid_constraint_dict, flux_value_dict)
+        predicted_mid_dict[name] = predicted_vector
+    return predicted_mid_dict
 
 
-def plot_raw_mid_bar(data_dict, color_dict=None, title=None, save_path=None):
+def plot_raw_mid_bar(data_dict, color_dict=None, error_bar_dict=None, title=None, save_path=None):
     edge = 0.2
     bar_total_width = 0.7
     group_num = len(data_dict)
@@ -314,10 +308,20 @@ def plot_raw_mid_bar(data_dict, color_dict=None, title=None, save_path=None):
             current_color = color_dict[data_name]
         else:
             current_color = None
+        if error_bar_dict is not None and data_name in error_bar_dict:
+            error_bar_vector = error_bar_dict[data_name]
+            error_bar_param = {
+                'ecolor': current_color,
+                'capsize': 3,
+                'elinewidth': 1.5
+            }
+        else:
+            error_bar_vector = None
+            error_bar_param = {}
         x_loc = x_left_loc + index * bar_unit_width + bar_unit_width / 2
         ax.bar(
             x_loc, mid_array, width=bar_unit_width, color=current_color,
-            alpha=color_set.alpha_for_bar_plot, label=data_name)
+            alpha=color_set.alpha_for_bar_plot, label=data_name, yerr=error_bar_vector, error_kw=error_bar_param)
     # ax.set_xlabel(data_dict.keys())
     ax.set_ylim([0, 1])
     ax.set_xlim([-edge, array_len + edge])
@@ -376,18 +380,42 @@ def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, save_path=N
         fig.savefig(save_path, dpi=fig.dpi)
 
 
-def plot_box_distribution(data_dict, save_path=None):
-    fig, ax = plt.subplots()
+def plot_box_distribution(data_dict, save_path=None, broken_yaxis=None):
+    def color_edges(box_parts):
+        for part_name, part_list in box_parts.items():
+            if part_name == 'medians':
+                current_color = color_set.orange
+            else:
+                current_color = color_set.blue
+            for part in part_list:
+                part.set_color(current_color)
+
     data_list_for_box = data_dict.values()
     tissue_label_list = data_dict.keys()
     x_axis_position = np.arange(1, len(tissue_label_list) + 1)
 
-    ax.boxplot(data_list_for_box, whis='range')
-    ax.set_xticks(x_axis_position)
-    ax.set_xticklabels(tissue_label_list)
+    if broken_yaxis is None:
+        fig, ax = plt.subplots()
+        parts = ax.boxplot(data_list_for_box, whis='range')
+        color_edges(parts)
+        ax.set_xticks(x_axis_position)
+        ax.set_xticklabels(tissue_label_list)
+    else:
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        parts1 = ax1.boxplot(data_list_for_box, whis='range')
+        parts2 = ax2.boxplot(data_list_for_box, whis='range')
+        color_edges(parts1)
+        color_edges(parts2)
+        ax1.set_ylim([broken_yaxis[1], None])
+        ax2.set_ylim([-50, broken_yaxis[0]])
+        ax1.spines['bottom'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax1.xaxis.tick_top()
+        ax2.set_xticks(x_axis_position)
+        ax2.set_xticklabels(tissue_label_list)
+
     if save_path:
         fig.savefig(save_path, dpi=fig.dpi)
-
 
 # Plot a scatter in triangle based on data_matrix
 # data_matrix: N-3 matrix. Each row is a point with 3 coordinate
@@ -547,54 +575,83 @@ def parallel_solver(
 #     self.success = success
 #     self.minimal_obj_value = minimal_obj_value
 def fitting_result_display(
-        model_mid_data_dict, model_name, model_construction_func, obj_tolerance,
+        data_loader_func, model_name, model_construction_func, obj_tolerance,
         **other_parameters):
     server_data = False
     total_output_direct = constant_set.output_direct
+    model_mid_data_dict = data_loader_func(**other_parameters)
 
     balance_list, mid_constraint_list = model_construction_func(model_mid_data_dict)
+    experimental_label = 'Experimental MID'
+    predicted_label = 'Calculated MID'
+    plot_color_dict = {experimental_label: color_set.blue, predicted_label: color_set.orange}
+
+    target_vector_dict = {}
+    mid_size_dict = {}
+    for mid_constraint_dict in mid_constraint_list:
+        target_vector = mid_constraint_dict[constant_set.target_label]
+        name = "_".join([name for name in mid_constraint_dict.keys() if name != 'target'])
+        target_vector_dict[name] = target_vector
+        mid_size_dict[name] = len(target_vector)
 
     if server_data:
         output_direct = "{}/{}_server".format(total_output_direct, model_name)
     else:
         output_direct = "{}/{}".format(total_output_direct, model_name)
-    input_data_dict_gz_file = "{}/output_data_dict.gz".format(output_direct)
     raw_data_dict_gz_file = "{}/raw_output_data_dict.gz".format(output_direct)
-    with gzip.open(input_data_dict_gz_file, 'rb') as f_in:
-        input_data_dict = pickle.load(f_in)
     with gzip.open(raw_data_dict_gz_file, 'rb') as f_in:
         raw_input_data_dict = pickle.load(f_in)
     result_list: list = raw_input_data_dict['result_list']
-    target_result_dict = {}
-    target_obj_diff = 9999
-    # common_name = "compare_bar_min"
-    common_name = "compare_bar_cutoff"
+    predicted_mid_collection_dict = {}
     for result_object in result_list:
-        obj_diff = result_object.obj_value - result_object.minimal_obj_value
-        # if 0 < obj_diff < target_obj_diff:
-        if abs(obj_diff - obj_tolerance) < abs(target_obj_diff - obj_tolerance):
-            target_result_dict = result_object.result_dict
-            target_obj_diff = obj_diff
-    if len(target_result_dict) != 0:
-        print("\n".join(["{}: {:.4f}".format(flux_name, value) for flux_name, value in target_result_dict.items()]))
-        result_evaluation(target_result_dict, {}, mid_constraint_list, target_obj_diff, output_direct, common_name)
-        plt.show()
+        if result_object.success:
+            obj_diff = result_object.obj_value - result_object.minimal_obj_value
+            if obj_diff < obj_tolerance:
+                predicted_mid_dict = evaluation_for_one_flux(
+                    result_object.result_dict, {}, mid_constraint_list, mid_size_dict)
+                for mid_name, mid_vector in predicted_mid_dict.items():
+                    if mid_name not in predicted_mid_collection_dict:
+                        predicted_mid_collection_dict[mid_name] = []
+                    predicted_mid_collection_dict[mid_name].append(mid_vector)
+    for mid_name, mid_vector_list in predicted_mid_collection_dict.items():
+        predicted_mid_mean = np.mean(mid_vector_list, axis=0)
+        predicted_mid_std = np.std(mid_vector_list, axis=0)
+        target_mid_vector = target_vector_dict[mid_name]
+        plot_data_dict = {experimental_label: target_mid_vector, predicted_label: predicted_mid_mean}
+        plot_errorbar_dict = {predicted_label: predicted_mid_std}
+        save_path = "{}/complete_mid_prediction_distribution_{}.png".format(output_direct, mid_name)
+        plot_raw_mid_bar(
+            plot_data_dict, color_dict=plot_color_dict, error_bar_dict=plot_errorbar_dict,
+            title=mid_name, save_path=save_path)
+    plt.show()
 
 
 def parser_main():
     parameter_dict = {
         'model1': model_specific_functions.model1_parameters,
-        'model1_all': model_specific_functions.model1_all_tissue,
         'model1_m5': model_specific_functions.model1_m5_parameters,
         'model1_m9': model_specific_functions.model1_m9_parameters,
         'model1_lactate': model_specific_functions.model1_lactate_parameters,
         'model1_lactate_m4': model_specific_functions.model1_lactate_m4_parameters,
         'model1_lactate_m10': model_specific_functions.model1_lactate_m10_parameters,
         'model1_lactate_m11': model_specific_functions.model1_lactate_m11_parameters,
+        'model1_all': model_specific_functions.model1_all_tissue,
+        'model1_all_m5': model_specific_functions.model1_all_tissue_m5,
+        'model1_all_m9': model_specific_functions.model1_all_tissue_m9,
+        'model1_all_lactate': model_specific_functions.model1_all_tissue_lactate,
+        'model1_all_lactate_m4': model_specific_functions.model1_all_tissue_lactate_m4,
+        'model1_all_lactate_m10': model_specific_functions.model1_all_tissue_lactate_m10,
+        'model1_all_lactate_m11': model_specific_functions.model1_all_tissue_lactate_m11,
         'model1_unfitted': model_specific_functions.model1_unfitted_parameters,
         'parameter': model_specific_functions.model1_parameter_sensitivity,
         'model3': model_specific_functions.model3_parameters,
         'model3_all': model_specific_functions.model3_all_tissue,
+        'model3_all_m5': model_specific_functions.model3_all_tissue_m5,
+        'model3_all_m9': model_specific_functions.model3_all_tissue_m9,
+        'model3_all_lactate': model_specific_functions.model3_all_tissue_lactate,
+        'model3_all_lactate_m4': model_specific_functions.model3_all_tissue_lactate_m4,
+        'model3_all_lactate_m10': model_specific_functions.model3_all_tissue_lactate_m10,
+        'model3_all_lactate_m11': model_specific_functions.model3_all_tissue_lactate_m11,
         'model3_unfitted': model_specific_functions.model3_unfitted_parameters,
         'model5': model_specific_functions.model5_parameters,
         'model5_unfitted': model_specific_functions.model5_unfitted_parameters,
@@ -604,6 +661,9 @@ def parser_main():
         'model6_m4': model_specific_functions.model6_m4_parameters,
         'model6_unfitted': model_specific_functions.model6_unfitted_parameters,
         'model7': model_specific_functions.model7_parameters,
+        'model7_m2': model_specific_functions.model7_m2_parameters,
+        'model7_m3': model_specific_functions.model7_m3_parameters,
+        'model7_m4': model_specific_functions.model7_m3_parameters,
         'model7_unfitted': model_specific_functions.model7_unfitted_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument(
