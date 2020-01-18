@@ -1796,9 +1796,9 @@ def model1_all_tissue(test=False):
         g2_num = 31
         g2_display_interv = 30
     else:
-        f1_num = 1500
+        f1_num = 1000
         f1_display_interv = 250
-        g2_num = 1500
+        g2_num = 1000
         g2_display_interv = 250
 
     return locals()
@@ -2084,7 +2084,7 @@ def model3_all_tissue(test=False):
         total_point_num = int(1e2)
         ternary_resolution = int(2 ** 7)
     else:
-        total_point_num = int(1.2e6)
+        total_point_num = int(1e6)
         ternary_resolution = int(2 ** 8)
 
     return locals()
