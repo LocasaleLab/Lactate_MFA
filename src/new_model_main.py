@@ -472,7 +472,7 @@ def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 
         result_tri_array = np.array(list(simplex_iterator(_scale))) / _scale
         result_car_array = tri_to_car(result_tri_array)
         result_value_array = scipy.interpolate.griddata(
-            np.array(location_list), np.array(value_list), result_car_array, method='cubic')
+            np.array(_location_list), np.array(_value_list), result_car_array, method='cubic')
         target_dict = {}
         for (i, j, k), result_value in zip(simplex_iterator(bin_num), result_value_array):
             target_dict[(i, j)] = result_value
@@ -673,7 +673,7 @@ def parser_main():
         help='Whether the code is executed in test mode, which means less sample number and shorter time.')
     parser.add_argument(
         '-f', '--fitting_result', action='store_true', default=False,
-        help='Whether to show the fitting result near threshold.')
+        help='Whether to show the distribution of fitting result after simulating the sample.')
     parser.add_argument(
         '-p', '--parallel_num', type=int, default=None,
         help='Number of parallel processes. If not provided, it will be selected according to CPU cores.')
