@@ -44,7 +44,8 @@ def data_loader_dan(
 def dynamic_range_model12(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, fitted=True, **other_parameters):
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, fitted=True, split=False,
+        **other_parameters):
     def iter_parameter_generator_constructor(
             _f1_free_flux, _g2_free_flux, _constant_flux_dict):
         for f1_index, f1 in enumerate(_f1_free_flux):
@@ -80,7 +81,7 @@ def dynamic_range_model12(
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
-        'fitted': fitted
+        'fitted': fitted, 'split': split
     }
     iter_parameter_list = iter_parameter_generator_constructor(
         f1_free_flux, g2_free_flux, constant_flux_dict)
@@ -90,7 +91,7 @@ def dynamic_range_model12(
 def all_tissue_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, **other_parameters):
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, split=False, **other_parameters):
     def iter_parameter_generator_constructor(
             _f1_free_flux, _g2_free_flux, _model_parameter_dict_list):
         for model_parameter_dict in _model_parameter_dict_list:
@@ -135,7 +136,7 @@ def all_tissue_model1(
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'split': split
     }
     iter_parameter_list = iter_parameter_generator_constructor(
         f1_free_flux, g2_free_flux, model_parameter_dict_list)
@@ -270,7 +271,7 @@ def dynamic_range_model34(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
-        fitted=True, **other_parameters):
+        fitted=True, split=False, **other_parameters):
     def iter_parameter_generator_constructor(
             _free_fluxes_name_list, _constant_flux_dict, _free_flux_value_list):
         for free_flux_value in _free_flux_value_list:
@@ -324,7 +325,7 @@ def dynamic_range_model34(
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
         'free_fluxes_name_list': free_fluxes_name_list,
-        'iter_length': total_iter_num, 'fitted': fitted,
+        'iter_length': total_iter_num, 'fitted': fitted, 'split': split,
 
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
@@ -862,7 +863,7 @@ def model7_construction(mid_data_dict):
     return balance_list, mid_constraint_list
 
 
-def solve_glucose_contribution_model12(result_dict: dict):
+def solve_glucose_contribution_model12_old(result_dict: dict):
     glucose_flux = 0
     lactate_flux = 0
     f56 = result_dict['F5'] - result_dict['F6']
@@ -889,6 +890,40 @@ def solve_glucose_contribution_model12(result_dict: dict):
     return glucose_ratio
 
 
+def solve_glucose_contribution_model12(result_dict: dict, split=False):
+    source_glucose_flux = sink_glucose_flux = 0
+    source_lactate_flux = sink_lactate_flux = 0
+    f56 = result_dict['F5'] - result_dict['F6']
+    f78 = result_dict['F7'] - result_dict['F8']
+    g56 = result_dict['G5'] - result_dict['G6']
+    g78 = result_dict['G7'] - result_dict['G8']
+    if f56 > 0:
+        source_glucose_flux += f56
+    else:
+        source_lactate_flux += f56
+    if f78 > 0:
+        source_lactate_flux += f78
+    else:
+        source_glucose_flux += f78
+    if g56 > 0:
+        sink_glucose_flux += g56
+    else:
+        sink_lactate_flux += g56
+    if g78 > 0:
+        sink_lactate_flux += g78
+    else:
+        sink_glucose_flux += g78
+    if not split:
+        glucose_flux = source_glucose_flux + sink_glucose_flux
+        lactate_flux = source_lactate_flux + sink_lactate_flux
+        glucose_ratio = glucose_flux / (glucose_flux + lactate_flux)
+        return glucose_ratio
+    else:
+        source_glucose_ratio = source_glucose_flux / (source_glucose_flux + source_lactate_flux)
+        sink_glucose_ratio = sink_glucose_flux / (sink_glucose_flux + sink_lactate_flux)
+        return source_glucose_ratio, sink_glucose_ratio
+
+
 def result_processing_each_iteration_model12(result: config.Result, **other_parameters):
     processed_dict = {}
     # if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
@@ -901,6 +936,20 @@ def result_processing_each_iteration_model12(result: config.Result, **other_para
         processed_dict['obj_diff'] = np.nan
         processed_dict['valid'] = False
         processed_dict['glucose_contribution'] = -1
+    return processed_dict
+
+
+def result_processing_each_iteration_model12_split(result: config.Result, **other_parameters):
+    processed_dict = {}
+    if result.success:
+        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
+        processed_dict['valid'] = True
+        source_glucose_ratio, sink_glucose_ratio = solve_glucose_contribution_model12(result.result_dict, split=True)
+        processed_dict['glucose_contribution'] = (source_glucose_ratio, sink_glucose_ratio)
+    else:
+        processed_dict['obj_diff'] = np.nan
+        processed_dict['valid'] = False
+        processed_dict['glucose_contribution'] = (-1, -1)
     return processed_dict
 
 
@@ -983,27 +1032,45 @@ def final_processing_dynamic_range_model12(
     g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
+    split = const_parameter_dict['split']
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
-    glucose_contri_matrix = np.zeros_like(valid_matrix)
     objective_function_matrix = np.zeros_like(valid_matrix)
-    well_fit_glucose_contri_list = []
+    if not split:
+        glucose_contri_matrix = np.zeros_like(valid_matrix)
+        well_fit_glucose_contri_list = []
+    else:
+        glucose_contri_matrix = (np.zeros_like(valid_matrix), np.zeros_like(valid_matrix))
+        well_fit_glucose_contri_list = ([], [])
 
     for solver_result, processed_dict, var_parameter_dict in zip(
             result_list, processed_result_list, var_parameter_list):
         matrix_loc = solver_result.label['matrix_loc']
         if processed_dict['valid']:
             valid_matrix[matrix_loc] = 1
-            glucose_contri_matrix[matrix_loc] = processed_dict['glucose_contribution']
             objective_function_matrix[matrix_loc] = processed_dict['obj_diff']
+            glucose_contribution = processed_dict['glucose_contribution']
+            if not split:
+                glucose_contri_matrix[matrix_loc] = glucose_contribution
+            else:
+                glucose_contri_matrix[0][matrix_loc] = glucose_contribution[0]
+                glucose_contri_matrix[1][matrix_loc] = glucose_contribution[1]
             if processed_dict['obj_diff'] < obj_tolerance:
-                well_fit_glucose_contri_list.append(processed_dict['glucose_contribution'])
+                if not split:
+                    well_fit_glucose_contri_list.append(glucose_contribution)
+                else:
+                    well_fit_glucose_contri_list[0].append(glucose_contribution[0])
+                    well_fit_glucose_contri_list[1].append(glucose_contribution[1])
         else:
             valid_matrix[matrix_loc] = 0
-            glucose_contri_matrix[matrix_loc] = np.nan
             objective_function_matrix[matrix_loc] = np.nan
+            if not split:
+                glucose_contri_matrix[matrix_loc] = np.nan
+            else:
+                glucose_contri_matrix[0][matrix_loc] = np.nan
+                glucose_contri_matrix[1][matrix_loc] = np.nan
 
     filtered_obj_function_matrix = objective_function_matrix.copy()
     filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
@@ -1012,9 +1079,6 @@ def final_processing_dynamic_range_model12(
 
     common_functions.plot_heat_map(
         valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
-    common_functions.plot_heat_map(
-        glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-        cbar_name='Glucose Contribution', save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
     common_functions.plot_heat_map(
         objective_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
         cbar_name='Objective difference', save_path="{}/objective_function.png".format(output_direct))
@@ -1026,12 +1090,35 @@ def final_processing_dynamic_range_model12(
         {'normal': filtered_obj_array},
         save_path="{}/filtered_objective_distribution.png".format(output_direct))
 
-    if len(well_fit_glucose_contri_list) == 0:
-        warnings.warn('No point fit the constraint for contribution of carbon sources!')
-    common_functions.plot_violin_distribution(
-        {'normal': np.array(well_fit_glucose_contri_list)},
-        {'normal': color_set.blue},
-        save_path="{}/glucose_contribution_violin.png".format(output_direct))
+    if not split:
+        common_functions.plot_heat_map(
+            glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+            cbar_name='Glucose Contribution', save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
+        if len(well_fit_glucose_contri_list) == 0:
+            warnings.warn('No point fit the constraint for contribution of carbon sources!')
+        common_functions.plot_violin_distribution(
+            {'normal': np.array(well_fit_glucose_contri_list)},
+            {'normal': color_set.blue},
+            save_path="{}/glucose_contribution_violin.png".format(output_direct))
+    else:
+        common_functions.plot_heat_map(
+            glucose_contri_matrix[0], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+            cbar_name='Glucose Contribution',
+            save_path="{}/glucose_contribution_heatmap_source.png".format(output_direct))
+        common_functions.plot_heat_map(
+            glucose_contri_matrix[1], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+            cbar_name='Glucose Contribution',
+            save_path="{}/glucose_contribution_heatmap_sink.png".format(output_direct))
+        if len(well_fit_glucose_contri_list[0]) == 0:
+            warnings.warn('No point fit the constraint for contribution of carbon sources!')
+        common_functions.plot_violin_distribution(
+            {'normal': np.array(well_fit_glucose_contri_list[0])},
+            {'normal': color_set.blue},
+            save_path="{}/glucose_contribution_violin_source.png".format(output_direct))
+        common_functions.plot_violin_distribution(
+            {'normal': np.array(well_fit_glucose_contri_list[1])},
+            {'normal': color_set.blue},
+            save_path="{}/glucose_contribution_violin_sink.png".format(output_direct))
 
     raw_output_data_dict = {
         'result_list': result_list,
@@ -1193,19 +1280,27 @@ def final_processing_all_tissue_model12(
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     tissue_name_list = const_parameter_dict['tissue_name_list']
+    split = const_parameter_dict['split']
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
     valid_matrix_dict = {
         tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-    glucose_contri_matrix_dict = {
-        tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
+    if not split:
+        glucose_contri_matrix_dict = {
+            tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
+        well_fit_glucose_contri_dict = {
+            tissue_name: [] for tissue_name in tissue_name_list}
+    else:
+        glucose_contri_matrix_dict = {
+            tissue_name: (np.zeros_like(valid_matrix), np.zeros_like(valid_matrix))
+            for tissue_name in tissue_name_list}
+        well_fit_glucose_contri_dict = {
+            tissue_name: ([], []) for tissue_name in tissue_name_list}
     objective_function_matrix_dict = {
         tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
     filtered_obj_list_dict = {
-        tissue_name: [] for tissue_name in tissue_name_list}
-    well_fit_glucose_contri_dict = {
         tissue_name: [] for tissue_name in tissue_name_list}
 
     for solver_result, processed_dict in zip(result_list, processed_result_list):
@@ -1215,19 +1310,32 @@ def final_processing_all_tissue_model12(
             obj_diff = processed_dict['obj_diff']
             glucose_contribution = processed_dict['glucose_contribution']
             valid_matrix_dict[tissue_name][matrix_loc] = 1
-            glucose_contri_matrix_dict[tissue_name][matrix_loc] = glucose_contribution
             objective_function_matrix_dict[tissue_name][matrix_loc] = obj_diff
+            glucose_contri_matrix = glucose_contri_matrix_dict[tissue_name]
+            if not split:
+                glucose_contri_matrix[matrix_loc] = glucose_contribution
+            else:
+                glucose_contri_matrix[0][matrix_loc], glucose_contri_matrix[1][matrix_loc] = glucose_contribution
             if obj_diff < obj_tolerance:
-                well_fit_glucose_contri_dict[tissue_name].append(glucose_contribution)
+                well_fit_glucose_contri_list = well_fit_glucose_contri_dict[tissue_name]
+                if not split:
+                    well_fit_glucose_contri_list.append(glucose_contribution)
+                else:
+                    well_fit_glucose_contri_list[0].append(glucose_contribution[0])
+                    well_fit_glucose_contri_list[1].append(glucose_contribution[1])
                 filtered_obj_list_dict[tissue_name].append(obj_diff)
         else:
             valid_matrix_dict[tissue_name][matrix_loc] = 0
-            glucose_contri_matrix_dict[tissue_name][matrix_loc] = np.nan
+            glucose_contri_matrix = glucose_contri_matrix_dict[tissue_name]
+            if not split:
+                glucose_contri_matrix[matrix_loc] = np.nan
+            else:
+                glucose_contri_matrix[0][matrix_loc] = np.nan
+                glucose_contri_matrix[1][matrix_loc] = np.nan
             objective_function_matrix_dict[tissue_name][matrix_loc] = np.nan
 
     filtered_obj_function_matrix_dict = {}
     for tissue_name, current_obj_matrix in objective_function_matrix_dict.items():
-        well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_dict[tissue_name])
         filtered_obj_matrix = current_obj_matrix.copy()
         filtered_obj_matrix[current_obj_matrix > obj_tolerance] = np.nan
         filtered_obj_function_matrix_dict[tissue_name] = filtered_obj_matrix
@@ -1235,16 +1343,20 @@ def final_processing_all_tissue_model12(
         tissue_name: np.array(filtered_obj_list)
         for tissue_name, filtered_obj_list in filtered_obj_list_dict.items()}
 
+    # well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_dict[tissue_name])
+
     # filtered_obj_function_matrix = objective_function_matrix.copy()
     # filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
     for tissue_name in tissue_name_list:
+        if split:
+            continue
         common_functions.plot_heat_map(
             valid_matrix_dict[tissue_name], g2_free_flux, f1_free_flux,
             save_path="{}/dynamic_range_{}.png".format(output_direct, tissue_name))
-        common_functions.plot_heat_map(
-            glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-            cbar_name='Glucose Contribution',
-            save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
+        # common_functions.plot_heat_map(
+        #     glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        #     cbar_name='Glucose Contribution',
+        #     save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
         common_functions.plot_heat_map(
             objective_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
             cbar_name='Objective difference',
@@ -1254,15 +1366,37 @@ def final_processing_all_tissue_model12(
             cbar_name='Filtered objective difference',
             save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
 
-    if len(well_fit_glucose_contri_dict[tissue_name_list[0]]) == 0:
-        raise ValueError('No point fit the constraint for contribution of carbon sources!')
-    common_functions.plot_violin_distribution(
-        well_fit_glucose_contri_dict,
-        {tissue_name: color_set.blue for tissue_name in tissue_name_list},
-        save_path="{}/glucose_contribution_violin_all_tissue.png".format(output_direct))
     common_functions.plot_box_distribution(
         filtered_obj_array_dict,
         save_path="{}/complete_objective_distribution_comparison.png".format(output_direct))
+    # well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_dict[tissue_name])
+    # if len(well_fit_glucose_contri_dict[tissue_name_list[0]]) == 0:
+    #     raise ValueError('No point fit the constraint for contribution of carbon sources!')
+    if not split:
+        new_well_fit_glucose_contri_dict = {}
+        for tissue_name, well_fit_glucose_contri_list in well_fit_glucose_contri_dict.items():
+            if len(well_fit_glucose_contri_list) == 0:
+                raise ValueError('No point fit the constraint for contribution of carbon sources!')
+            new_well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_list)
+        common_functions.plot_violin_distribution(
+            new_well_fit_glucose_contri_dict,
+            {tissue_name: color_set.blue for tissue_name in tissue_name_list},
+            save_path="{}/glucose_contribution_violin_all_tissue.png".format(output_direct))
+    else:
+        new_well_fit_glucose_contri_dict = ({}, {})
+        for tissue_name, well_fit_glucose_contri_list in well_fit_glucose_contri_dict.items():
+            if len(well_fit_glucose_contri_list[0]) == 0:
+                raise ValueError('No point fit the constraint for contribution of carbon sources!')
+            new_well_fit_glucose_contri_dict[0][tissue_name] = np.array(well_fit_glucose_contri_list[0])
+            new_well_fit_glucose_contri_dict[1][tissue_name] = np.array(well_fit_glucose_contri_list[1])
+        common_functions.plot_violin_distribution(
+            new_well_fit_glucose_contri_dict[0],
+            {tissue_name: color_set.blue for tissue_name in tissue_name_list},
+            save_path="{}/glucose_contribution_violin_all_tissue_source.png".format(output_direct))
+        common_functions.plot_violin_distribution(
+            new_well_fit_glucose_contri_dict[1],
+            {tissue_name: color_set.blue for tissue_name in tissue_name_list},
+            save_path="{}/glucose_contribution_violin_all_tissue_sink.png".format(output_direct))
 
     raw_output_data_dict = {
         'result_list': result_list,
@@ -1276,7 +1410,7 @@ def final_processing_all_tissue_model12(
         'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
         'objective_function_matrix_dict': objective_function_matrix_dict,
         'filtered_obj_array_dict': filtered_obj_array_dict,
-        'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict
+        'well_fit_glucose_contri_dict': new_well_fit_glucose_contri_dict
     }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
@@ -1782,10 +1916,12 @@ def model1_all_tissue(test=False):
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
                          ['Fcirc_glc', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+    # constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 40}
 
     min_flux_value = 1
-    max_flux_value = 1000
+    # max_flux_value = 1000
+    max_flux_value = 500
     optimization_repeat_time = 10
     obj_tolerance = 0.1
     f1_range = [1, 150]
@@ -2361,3 +2497,38 @@ def model7_unfitted_parameters(test=False):
     })
 
     return model7_parameter_dict
+
+
+def model1_split_contribution(test=False):
+    model_name = "model1_split_contribution"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model1_all_tissue_parameter_dict = model1_all_tissue(test)
+    model1_all_tissue_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'split': True,
+        'hook_in_each_iteration': result_processing_each_iteration_model12_split
+    })
+
+    return model1_all_tissue_parameter_dict
+
+
+def model6_split_contribution(test=False):
+    model_name = "model6_split_contribution"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model6_parameter_dict = model6_parameters(test)
+    model6_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'split': True,
+        'hook_in_each_iteration': result_processing_each_iteration_model12_split
+    })
+
+    return model6_parameter_dict
+
+
+def model1_hypoxia_correction(test=False):
+    model_name = "model1_hypoxia_correction"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
