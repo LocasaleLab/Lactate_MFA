@@ -643,6 +643,7 @@ def parser_main():
         'model1_all_lactate_m10': model_specific_functions.model1_all_tissue_lactate_m10,
         'model1_all_lactate_m11': model_specific_functions.model1_all_tissue_lactate_m11,
         'model1_all_split': model_specific_functions.model1_split_contribution,
+        'model1_hypoxia': model_specific_functions.model1_hypoxia_correction,
         'model1_unfitted': model_specific_functions.model1_unfitted_parameters,
         'parameter': model_specific_functions.model1_parameter_sensitivity,
         'model3': model_specific_functions.model3_parameters,

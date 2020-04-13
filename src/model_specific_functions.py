@@ -88,23 +88,24 @@ def dynamic_range_model12(
     return const_parameter_dict, iter_parameter_list
 
 
+def iter_parameter_generator_constructor_all_tissue(
+        _f1_free_flux, _g2_free_flux, _model_parameter_dict_list):
+    for model_parameter_dict in _model_parameter_dict_list:
+        for f1_index, f1 in enumerate(_f1_free_flux):
+            for g2_index, g2 in enumerate(_g2_free_flux):
+                new_iter_parameter_dict = model_parameter_dict.copy()
+                new_iter_parameter_dict['constant_flux_dict'] = model_parameter_dict['constant_flux_dict'].copy()
+                new_iter_parameter_dict['label'] = model_parameter_dict['label'].copy()
+                new_iter_parameter_dict['constant_flux_dict'].update({
+                    _f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2})
+                new_iter_parameter_dict['label']['matrix_loc'] = (f1_index, g2_index)
+                yield new_iter_parameter_dict
+
+
 def all_tissue_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, split=False, **other_parameters):
-    def iter_parameter_generator_constructor(
-            _f1_free_flux, _g2_free_flux, _model_parameter_dict_list):
-        for model_parameter_dict in _model_parameter_dict_list:
-            for f1_index, f1 in enumerate(_f1_free_flux):
-                for g2_index, g2 in enumerate(_g2_free_flux):
-                    new_iter_parameter_dict = model_parameter_dict.copy()
-                    new_iter_parameter_dict['constant_flux_dict'] = model_parameter_dict['constant_flux_dict'].copy()
-                    new_iter_parameter_dict['label'] = model_parameter_dict['label'].copy()
-                    new_iter_parameter_dict['constant_flux_dict'].update({
-                        _f1_free_flux.flux_name: f1, _g2_free_flux.flux_name: g2})
-                    new_iter_parameter_dict['label']['matrix_loc'] = (f1_index, g2_index)
-                    yield new_iter_parameter_dict
-
     f1_free_flux = config.FreeVariable(
         name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = config.FreeVariable(
@@ -138,7 +139,69 @@ def all_tissue_model1(
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'split': split
     }
-    iter_parameter_list = iter_parameter_generator_constructor(
+    iter_parameter_list = iter_parameter_generator_constructor_all_tissue(
+        f1_free_flux, g2_free_flux, model_parameter_dict_list)
+    return const_parameter_dict, iter_parameter_list
+
+
+def all_tissue_hypoxia_correction(
+        model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
+        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
+        hypoxia_correction_parameter_dict, split=False, **other_parameters):
+    def single_mid_correction(mid_vector, final_correction_ratio):
+        correction_ratio = final_correction_ratio / (1 - mid_vector[-1] - mid_vector[-1] * final_correction_ratio)
+        new_mid_vector = mid_vector.copy()
+        new_mid_vector[-1] *= (1 + correction_ratio)
+        new_mid_vector /= np.sum(new_mid_vector)
+        return new_mid_vector
+
+    def hypoxia_correction(mid_data_dict, parameter_dict):
+        new_mid_data_dict = dict(mid_data_dict)
+        glc_source_ratio = parameter_dict['glc_source']
+        new_mid_data_dict['glc_source'] = single_mid_correction(mid_data_dict['glc_source'], glc_source_ratio)
+        lac_sink_ratio = parameter_dict['lac_sink']
+        new_mid_data_dict['lac_sink'] = single_mid_correction(mid_data_dict['lac_sink'], lac_sink_ratio)
+        pyruvate_sink_ratio = parameter_dict['pyr_sink']
+        new_mid_data_dict['pyr_sink'] = single_mid_correction(mid_data_dict['pyr_sink'], pyruvate_sink_ratio)
+        return new_mid_data_dict
+
+    f1_free_flux = config.FreeVariable(
+        name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
+    g2_free_flux = config.FreeVariable(
+        name='G2', total_num=g2_num, var_range=g2_range, display_interv=g2_display_interv)
+    each_iter_num = (f1_num + 1) * (g2_num + 1)
+    total_iter_num = each_iter_num * len(model_mid_data_dict)
+
+    model_parameter_dict_list = []
+    for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
+        corrected_tissue_mid_data_dict = hypoxia_correction(
+            specific_tissue_mid_data_dict, hypoxia_correction_parameter_dict)
+        balance_list, mid_constraint_list = model_construction_func(corrected_tissue_mid_data_dict)
+        flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
+            balance_list, complete_flux_dict)
+        (
+            substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
+            optimal_obj_value) = common_functions.mid_constraint_constructor(
+            mid_constraint_list, complete_flux_dict)
+        var_parameter_dict = {
+            'flux_balance_matrix': flux_balance_matrix,
+            'flux_balance_constant_vector': flux_balance_constant_vector,
+            'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+            'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
+            'constant_flux_dict': constant_flux_dict,
+            'label': {'tissue': tissue_name}}
+        model_parameter_dict_list.append(var_parameter_dict)
+
+    const_parameter_dict = {
+        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
+        'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+
+        'optimization_repeat_time': optimization_repeat_time,
+        'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'split': split
+    }
+    iter_parameter_list = iter_parameter_generator_constructor_all_tissue(
         f1_free_flux, g2_free_flux, model_parameter_dict_list)
     return const_parameter_dict, iter_parameter_list
 
@@ -1916,12 +1979,12 @@ def model1_all_tissue(test=False):
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
                          ['Fcirc_glc', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    # constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 40}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
+    # constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 40}
 
     min_flux_value = 1
-    # max_flux_value = 1000
-    max_flux_value = 500
+    max_flux_value = 1000
+    # max_flux_value = 500
     optimization_repeat_time = 10
     obj_tolerance = 0.1
     f1_range = [1, 150]
@@ -2532,3 +2595,19 @@ def model6_split_contribution(test=False):
 def model1_hypoxia_correction(test=False):
     model_name = "model1_hypoxia_correction"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    # Positive means increasing labeling ratio. Negative means decreasing labeling ratio
+    # Correction of hypoxia should increase glucose in source, increase lactate in sink and decrease pyruvate in sink.
+    hypoxia_correction_parameter_dict = {
+        'glc_source': 0.2,
+        'lac_sink': 0.2,
+        'pyr_sink': -0.2,
+    }
+    model1_all_tissue_parameter_dict = model1_all_tissue(test)
+    model1_all_tissue_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'parameter_construction_func': all_tissue_hypoxia_correction,
+        'hypoxia_correction_parameter_dict': hypoxia_correction_parameter_dict
+    })
+    return model1_all_tissue_parameter_dict
