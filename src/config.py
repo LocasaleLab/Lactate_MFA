@@ -36,6 +36,12 @@ def rgba_to_rgb(raw_rgb, alpha, background):
     return raw_rgb * alpha + background * (1 - alpha)
 
 
+def empty_vector(n):
+    a = np.empty(n)
+    a.fill(np.nan)
+    return a
+
+
 class Color(object):
     white = np.array([1, 1, 1])
     blue = np.array([21, 113, 177]) / 255
@@ -71,4 +77,4 @@ class Constants(object):
 
     data_direct = "data"
     output_direct = "new_models"
-
+    default_tissue_name = ''

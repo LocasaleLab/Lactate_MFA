@@ -1,5 +1,4 @@
 import os
-import warnings
 import itertools as it
 import gzip
 import pickle
@@ -15,6 +14,8 @@ from src import new_model_main as common_functions, data_parser, config
 
 constant_set = config.Constants()
 color_set = config.Color()
+empty_2_vector = config.empty_vector(2)
+empty_3_vector = config.empty_vector(3)
 
 
 def data_loader_rabinowitz(
@@ -44,7 +45,7 @@ def data_loader_dan(
 def dynamic_range_model12(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, fitted=True, split=False,
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, model_name, fitted=True,
         **other_parameters):
     def iter_parameter_generator_constructor(
             _f1_free_flux, _g2_free_flux, _constant_flux_dict):
@@ -77,11 +78,12 @@ def dynamic_range_model12(
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
         'max_flux_value': max_flux_value, 'iter_length': total_iter_num,
+        'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
-        'fitted': fitted, 'split': split
+        'fitted': fitted, 'model_name': model_name
     }
     iter_parameter_list = iter_parameter_generator_constructor(
         f1_free_flux, g2_free_flux, constant_flux_dict)
@@ -105,7 +107,7 @@ def iter_parameter_generator_constructor_all_tissue(
 def all_tissue_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, split=False, **other_parameters):
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, model_name, **other_parameters):
     f1_free_flux = config.FreeVariable(
         name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
     g2_free_flux = config.FreeVariable(
@@ -134,10 +136,11 @@ def all_tissue_model1(
     const_parameter_dict = {
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
         'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+        'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'split': split
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'model_name': model_name
     }
     iter_parameter_list = iter_parameter_generator_constructor_all_tissue(
         f1_free_flux, g2_free_flux, model_parameter_dict_list)
@@ -148,7 +151,7 @@ def all_tissue_hypoxia_correction(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
-        hypoxia_correction_parameter_dict, split=False, **other_parameters):
+        hypoxia_correction_parameter_dict, model_name, **other_parameters):
     def single_mid_correction(mid_vector, final_correction_ratio):
         correction_ratio = final_correction_ratio / (1 - mid_vector[-1] - mid_vector[-1] * final_correction_ratio)
         new_mid_vector = mid_vector.copy()
@@ -196,10 +199,11 @@ def all_tissue_hypoxia_correction(
     const_parameter_dict = {
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
         'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+        'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'split': split
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'model_name': model_name
     }
     iter_parameter_list = iter_parameter_generator_constructor_all_tissue(
         f1_free_flux, g2_free_flux, model_parameter_dict_list)
@@ -210,7 +214,7 @@ def parameter_sensitivity_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, sigma_dict,
         parameter_sampling_num, deviation_factor_dict,
-        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
+        f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, model_name,
         **other_parameters):
     def iter_parameter_generator_constructor(
             _f1_free_flux, _g2_free_flux, _model_parameter_dict_list):
@@ -241,8 +245,8 @@ def parameter_sensitivity_model1(
             'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
             'constant_flux_dict': _constant_flux_dict,
             'label': {
-                'sample_type': _sample_type, 'sample_index': _sample_index,
-            }}
+                'sample_type': _sample_type, 'sample_index': _sample_index, }
+        }
         return model_parameter_dict
 
     def model_parameter_generator_constructor(
@@ -299,7 +303,7 @@ def parameter_sensitivity_model1(
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
-        'obj_tolerance': obj_tolerance, 'output_direct': output_direct
+        'obj_tolerance': obj_tolerance, 'output_direct': output_direct, 'model_name': model_name,
     }
     model_parameter_dict_list = model_parameter_generator_constructor(
         model_mid_data_dict, mid_sigma, flux_sigma)
@@ -334,7 +338,7 @@ def dynamic_range_model34(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
         optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
-        fitted=True, split=False, **other_parameters):
+        model_name, parallel_num, fitted=True, **other_parameters):
     def iter_parameter_generator_constructor(
             _free_fluxes_name_list, _constant_flux_dict, _free_flux_value_list):
         for free_flux_value in _free_flux_value_list:
@@ -383,12 +387,13 @@ def dynamic_range_model34(
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value,
+        'max_flux_value': max_flux_value, 'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
         'free_fluxes_name_list': free_fluxes_name_list,
-        'iter_length': total_iter_num, 'fitted': fitted, 'split': split,
+        'iter_length': total_iter_num, 'fitted': fitted, 'model_name': model_name,
+        'parallel_num': parallel_num,
 
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
@@ -442,11 +447,13 @@ def all_tissue_model3(
     const_parameter_dict = {
         'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
         'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+        'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
         'free_fluxes_name_list': free_fluxes_name_list,
-        'iter_length': total_iter_length,
+        'iter_length': total_iter_length, 'model_name': model_name,
+        'parallel_num': parallel_num,
 
         'ternary_sigma': ternary_sigma, 'ternary_resolution': ternary_resolution
     }
@@ -953,133 +960,127 @@ def solve_glucose_contribution_model12_old(result_dict: dict):
     return glucose_ratio
 
 
-def solve_glucose_contribution_model12(result_dict: dict, split=False):
-    source_glucose_flux = sink_glucose_flux = 0
-    source_lactate_flux = sink_lactate_flux = 0
+def metabolite_contribution_model12(result_dict: dict, empty=False):
+    if empty:
+        contribution_dict = {'source': empty_2_vector, 'sink': empty_2_vector, 'total': empty_2_vector, }
+        return False, contribution_dict
+
     f56 = result_dict['F5'] - result_dict['F6']
     f78 = result_dict['F7'] - result_dict['F8']
     g56 = result_dict['G5'] - result_dict['G6']
     g78 = result_dict['G7'] - result_dict['G8']
-    if f56 > 0:
-        source_glucose_flux += f56
-    else:
-        source_lactate_flux += f56
-    if f78 > 0:
-        source_lactate_flux += f78
-    else:
-        source_glucose_flux += f78
-    if g56 > 0:
-        sink_glucose_flux += g56
-    else:
-        sink_lactate_flux += g56
-    if g78 > 0:
-        sink_lactate_flux += g78
-    else:
-        sink_glucose_flux += g78
-    if not split:
-        glucose_flux = source_glucose_flux + sink_glucose_flux
-        lactate_flux = source_lactate_flux + sink_lactate_flux
-        glucose_ratio = glucose_flux / (glucose_flux + lactate_flux)
-        return glucose_ratio
-    else:
-        source_glucose_ratio = source_glucose_flux / (source_glucose_flux + source_lactate_flux)
-        sink_glucose_ratio = sink_glucose_flux / (sink_glucose_flux + sink_lactate_flux)
-        return source_glucose_ratio, sink_glucose_ratio
+    # source_glucose_flux = sink_glucose_flux = 0
+    # source_lactate_flux = sink_lactate_flux = 0
+    # if f56 > 0:
+    #     source_glucose_flux += f56
+    # else:
+    #     source_lactate_flux += f56
+    # if f78 > 0:
+    #     source_lactate_flux += f78
+    # else:
+    #     source_glucose_flux += f78
+    # if g56 > 0:
+    #     sink_glucose_flux += g56
+    # else:
+    #     sink_lactate_flux += g56
+    # if g78 > 0:
+    #     sink_lactate_flux += g78
+    # else:
+    #     sink_glucose_flux += g78
+    # source_glucose_ratio = source_glucose_flux / (source_glucose_flux + source_lactate_flux)
+    # sink_glucose_ratio = sink_glucose_flux / (sink_glucose_flux + sink_lactate_flux)
+    # glucose_flux = source_glucose_flux + sink_glucose_flux
+    # lactate_flux = source_lactate_flux + sink_lactate_flux
+    # total_glucose_ratio = glucose_flux / (glucose_flux + lactate_flux)
+    # glucose_contribution_dict = {
+    #         'source': source_glucose_ratio,
+    #         'sink': sink_glucose_ratio,
+    #         'total': total_glucose_ratio,}
+    source_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([f56, f78])
+    source_ratio_array = source_tissue_flux_array / np.sum(source_tissue_flux_array)
+    sink_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([g56, g78])
+    sink_ratio_array = sink_tissue_flux_array / np.sum(sink_tissue_flux_array)
+    total_tissue_flux_array = source_tissue_flux_array + sink_tissue_flux_array
+    total_ratio_array = total_tissue_flux_array / np.sum(total_tissue_flux_array)
+    contribution_dict = {
+        'source': source_ratio_array,
+        'sink': sink_ratio_array,
+        'total': total_ratio_array, }
+    return True, contribution_dict
 
 
-def result_processing_each_iteration_model12(result: config.Result, **other_parameters):
-    processed_dict = {}
-    # if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
-    if result.success:
-        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
-        processed_dict['valid'] = True
-        glucose_contribution = solve_glucose_contribution_model12(result.result_dict)
-        processed_dict['glucose_contribution'] = glucose_contribution
-    else:
-        processed_dict['obj_diff'] = np.nan
-        processed_dict['valid'] = False
-        processed_dict['glucose_contribution'] = -1
-    return processed_dict
+def metabolite_contribution_model34(result_dict: dict, empty=False):
+    if empty:
+        contribution_dict = {'source': empty_3_vector, 'sink': empty_3_vector, 'total': empty_3_vector, }
+        return False, contribution_dict
+
+    f56 = result_dict['F5'] - result_dict['F6']
+    f78 = result_dict['F7'] - result_dict['F8']
+    f910 = result_dict['F9'] - result_dict['F10']
+    g56 = result_dict['G5'] - result_dict['G6']
+    g78 = result_dict['G7'] - result_dict['G8']
+    g910 = result_dict['G9'] - result_dict['G10']
+
+    source_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([f56, f78, f910])
+    source_ratio_array = source_tissue_flux_array / np.sum(source_tissue_flux_array)
+    sink_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([g56, g78, g910])
+    sink_ratio_array = sink_tissue_flux_array / np.sum(sink_tissue_flux_array)
+    total_flux_array = source_tissue_flux_array + sink_tissue_flux_array
+    total_ratio_array = total_flux_array / np.sum(total_flux_array)
+    # glucose_flux, lactate_flux, pyruvate_flux = [
+    #     source_flux + sink_flux for source_flux, sink_flux in zip(source_tissue_flux_list, sink_tissue_flux_list)]
+    # total_flux = glucose_flux + lactate_flux + pyruvate_flux
+    # glucose_ratio = glucose_flux / total_flux
+    # lactate_ratio = lactate_flux / total_flux
+    # pyruvate_ratio = pyruvate_flux / total_flux
+    contribution_dict = {
+        'source': source_ratio_array,
+        'sink': sink_ratio_array,
+        'total': total_ratio_array, }
+    return True, contribution_dict
 
 
-def result_processing_each_iteration_model12_split(result: config.Result, **other_parameters):
-    processed_dict = {}
-    if result.success:
-        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
-        processed_dict['valid'] = True
-        source_glucose_ratio, sink_glucose_ratio = solve_glucose_contribution_model12(result.result_dict, split=True)
-        processed_dict['glucose_contribution'] = (source_glucose_ratio, sink_glucose_ratio)
-    else:
-        processed_dict['obj_diff'] = np.nan
-        processed_dict['valid'] = False
-        processed_dict['glucose_contribution'] = (-1, -1)
-    return processed_dict
+def metabolite_contribution_model5(result_dict: dict, empty=False):
+    empty_contribution_dict = {
+        'source': empty_2_vector, 'sink1': empty_2_vector, 'sink2': empty_2_vector,
+        'sink': empty_2_vector, 'total': empty_2_vector, }
+    if empty:
+        return False, empty_contribution_dict
+    g9 = result_dict['G9']
+    h9 = result_dict['H9']
+    if g9 < 2 and h9 < 2:
+        return False, empty_contribution_dict
 
+    f56 = result_dict['F5'] - result_dict['F6']
+    f78 = result_dict['F7'] - result_dict['F8']
+    g56 = result_dict['G5'] - result_dict['G6']
+    g78 = result_dict['G7'] - result_dict['G8']
+    h56 = result_dict['H5'] - result_dict['H6']
+    h78 = result_dict['H7'] - result_dict['H8']
 
-def result_processing_each_iteration_model34(result: config.Result, **other_parameters):
-    def solve_glucose_contribution_model34(result_dict: dict):
-        f56 = result_dict['F5'] - result_dict['F6']
-        f78 = result_dict['F7'] - result_dict['F8']
-        f910 = result_dict['F9'] - result_dict['F10']
-        g56 = result_dict['G5'] - result_dict['G6']
-        g78 = result_dict['G7'] - result_dict['G8']
-        g910 = result_dict['G9'] - result_dict['G10']
-
-        source_tissue_flux_list = common_functions.calculate_one_tissue_tca_contribution([f56, f78, f910])
-        sink_tissue_flux_list = common_functions.calculate_one_tissue_tca_contribution([g56, g78, g910])
-        glucose_flux, lactate_flux, pyruvate_flux = [
-            source_flux + sink_flux for source_flux, sink_flux in zip(source_tissue_flux_list, sink_tissue_flux_list)]
-        total_flux = glucose_flux + lactate_flux + pyruvate_flux
-        glucose_ratio = glucose_flux / total_flux
-        lactate_ratio = lactate_flux / total_flux
-        pyruvate_ratio = pyruvate_flux / total_flux
-        return glucose_ratio, lactate_ratio, pyruvate_ratio
-
-    processed_dict = {}
-    if result.success:
-        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
-        processed_dict['valid'] = True
-        contribution_list = solve_glucose_contribution_model34(result.result_dict)
-        processed_dict['contribution_array'] = np.array(contribution_list)
-    else:
-        processed_dict['obj_diff'] = np.nan
-        processed_dict['valid'] = False
-        processed_dict['contribution_array'] = np.array([])
-    return processed_dict
-
-
-def result_processing_each_iteration_model5(result: config.Result, **other_parameters):
-    def solve_glucose_contribution_model5(result_dict: dict):
-        f56 = result_dict['F5'] - result_dict['F6']
-        f78 = result_dict['F7'] - result_dict['F8']
-        g56 = result_dict['G5'] - result_dict['G6']
-        g78 = result_dict['G7'] - result_dict['G8']
-        h56 = result_dict['H5'] - result_dict['H6']
-        h78 = result_dict['H7'] - result_dict['H8']
-
-        source_tissue_flux_list = common_functions.calculate_one_tissue_tca_contribution([f56, f78])
-        sink1_tissue_flux_list = common_functions.calculate_one_tissue_tca_contribution([g56, g78])
-        sink2_tissue_flux_list = common_functions.calculate_one_tissue_tca_contribution([h56, h78])
-        glucose_flux, lactate_flux = [
-            source_flux + sink1_flux + sink2_flux for source_flux, sink1_flux, sink2_flux in zip(
-                source_tissue_flux_list, sink1_tissue_flux_list, sink2_tissue_flux_list)]
-        total_flux = glucose_flux + lactate_flux
-        glucose_ratio = glucose_flux / total_flux
-        lactate_ratio = lactate_flux / total_flux
-        return glucose_ratio, lactate_ratio
-
-    processed_dict = {}
-    # if result.success and current_obj_value - minimal_obj_value < obj_tolerance:
-    if result.success:
-        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
-        processed_dict['valid'] = True
-        glucose_contribution, lactate_contribution = solve_glucose_contribution_model5(result.result_dict)
-        processed_dict['glucose_contribution'] = glucose_contribution
-    else:
-        processed_dict['obj_diff'] = np.nan
-        processed_dict['valid'] = False
-        processed_dict['glucose_contribution'] = -1
-    return processed_dict
+    source_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([f56, f78])
+    source_ratio_array = source_tissue_flux_array / np.sum(source_tissue_flux_array)
+    sink1_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([g56, g78])
+    sink1_ratio_array = sink1_tissue_flux_array / np.sum(sink1_tissue_flux_array)
+    sink2_tissue_flux_array = common_functions.calculate_one_tissue_tca_contribution([h56, h78])
+    sink2_ratio_array = sink2_tissue_flux_array / np.sum(sink2_tissue_flux_array)
+    sink_tissue_flux_array = sink1_tissue_flux_array + sink2_tissue_flux_array
+    sink_ratio_array = sink_tissue_flux_array / np.sum(sink_tissue_flux_array)
+    total_tissue_flux_array = sink_tissue_flux_array + source_tissue_flux_array
+    total_ratio_array = total_tissue_flux_array / np.sum(total_tissue_flux_array)
+    # glucose_flux, lactate_flux = [
+    #     source_flux + sink1_flux + sink2_flux for source_flux, sink1_flux, sink2_flux in zip(
+    #         source_tissue_flux_list, sink1_tissue_flux_list, sink2_tissue_flux_list)]
+    # total_flux = glucose_flux + lactate_flux
+    # glucose_ratio = glucose_flux / total_flux
+    # lactate_ratio = lactate_flux / total_flux
+    contribution_dict = {
+        'source': source_ratio_array,
+        'sink1': sink1_ratio_array,
+        'sink2': sink2_ratio_array,
+        'sink': sink_ratio_array,
+        'total': total_ratio_array, }
+    return True, contribution_dict
 
 
 def model1_print_result(result_dict, constant_flux_dict):
@@ -1089,491 +1090,312 @@ def model1_print_result(result_dict, constant_flux_dict):
     print("Constants:\n{}".format("\n".join(const_string_list)))
 
 
+def func_parallel_wrap(func_tuple):
+    func, kwargs = func_tuple
+    func(**kwargs)
+
+
 def final_processing_dynamic_range_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
     g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
-    split = const_parameter_dict['split']
+    raw_constant_flux_dict = const_parameter_dict['raw_constant_flux_dict']
+    all_tissue = False
+    model_name = const_parameter_dict['model_name']
+    tissue_name = constant_set.default_tissue_name
+    tissue_name_list = [tissue_name]
+    if 'all_tissue' in model_name:
+        all_tissue = True
+        tissue_name_list = const_parameter_dict['tissue_name_list']
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
 
     valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
-    objective_function_matrix = np.zeros_like(valid_matrix)
-    if not split:
-        glucose_contri_matrix = np.zeros_like(valid_matrix)
-        well_fit_glucose_contri_list = []
-    else:
-        glucose_contri_matrix = (np.zeros_like(valid_matrix), np.zeros_like(valid_matrix))
-        well_fit_glucose_contri_list = ([], [])
+    well_fitted_count_dict = {tissue_name: 0 for tissue_name in tissue_name_list}
+
+    valid_matrix_dict = {
+        tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
+    objective_function_matrix_dict = {
+        tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
+
+    glucose_contri_matrix_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+    well_fit_glucose_contri_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+    feasible_flux_distribution_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
 
     for solver_result, processed_dict, var_parameter_dict in zip(
             result_list, processed_result_list, var_parameter_list):
+        if all_tissue:
+            tissue_name = solver_result.label['tissue']
+
+        valid_matrix = valid_matrix_dict[tissue_name]
+        objective_function_matrix = objective_function_matrix_dict[tissue_name]
+        glucose_contri_matrix_dict = glucose_contri_matrix_tissue_dict[tissue_name]
+        well_fit_glucose_contri_dict = well_fit_glucose_contri_tissue_dict[tissue_name]
+        feasible_flux_distribution_dict = feasible_flux_distribution_tissue_dict[tissue_name]
+
         matrix_loc = solver_result.label['matrix_loc']
-        if processed_dict['valid']:
-            valid_matrix[matrix_loc] = 1
-            objective_function_matrix[matrix_loc] = processed_dict['obj_diff']
-            glucose_contribution = processed_dict['glucose_contribution']
-            if not split:
-                glucose_contri_matrix[matrix_loc] = glucose_contribution
-            else:
-                glucose_contri_matrix[0][matrix_loc] = glucose_contribution[0]
-                glucose_contri_matrix[1][matrix_loc] = glucose_contribution[1]
-            if processed_dict['obj_diff'] < obj_tolerance:
-                if not split:
-                    well_fit_glucose_contri_list.append(glucose_contribution)
-                else:
-                    well_fit_glucose_contri_list[0].append(glucose_contribution[0])
-                    well_fit_glucose_contri_list[1].append(glucose_contribution[1])
-        else:
-            valid_matrix[matrix_loc] = 0
-            objective_function_matrix[matrix_loc] = np.nan
-            if not split:
-                glucose_contri_matrix[matrix_loc] = np.nan
-            else:
-                glucose_contri_matrix[0][matrix_loc] = np.nan
-                glucose_contri_matrix[1][matrix_loc] = np.nan
+        contribution_dict = processed_dict['contribution_dict']
+        obj_diff = processed_dict['obj_diff']
+        valid = processed_dict['valid']
+        valid_matrix[matrix_loc] = int(valid)
+        objective_function_matrix[matrix_loc] = obj_diff
+        result_dict = solver_result.result_dict
+        if valid and obj_diff < obj_tolerance:
+            for flux_name, flux_value in result_dict.items():
+                if flux_name not in feasible_flux_distribution_dict:
+                    feasible_flux_distribution_dict[flux_name] = []
+                feasible_flux_distribution_dict[flux_name].append(flux_value)
+        for contribution_type, contribution_vector in contribution_dict.items():
+            if contribution_type not in glucose_contri_matrix_dict:
+                glucose_contri_matrix_dict[contribution_type] = np.zeros_like(valid_matrix)
+                well_fit_glucose_contri_dict[contribution_type] = []
+            glucose_contri_matrix_dict[contribution_type][matrix_loc] = contribution_vector[0]
+            if valid and obj_diff < obj_tolerance:
+                well_fitted_count_dict[tissue_name] += 1
+                well_fit_glucose_contri_dict[contribution_type].append(contribution_vector[0])
 
-    filtered_obj_function_matrix = objective_function_matrix.copy()
-    filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
-    filtered_obj_array = np.reshape(filtered_obj_function_matrix, [-1])
-    filtered_obj_array = filtered_obj_array[~np.isnan(filtered_obj_array)]
+    for tissue_name, well_fitted_count in well_fitted_count_dict.items():
+        if well_fitted_count == 0:
+            raise ValueError('No point fit the constraint for contribution of carbon sources!: {}'.format(tissue_name))
 
-    common_functions.plot_heat_map(
-        valid_matrix, g2_free_flux, f1_free_flux, save_path="{}/dynamic_range.png".format(output_direct))
-    common_functions.plot_heat_map(
-        objective_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-        cbar_name='Objective difference', save_path="{}/objective_function.png".format(output_direct))
-    common_functions.plot_heat_map(
-        filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-        cbar_name='Filtered objective difference',
-        save_path="{}/filtered_objective_function.png".format(output_direct))
-    common_functions.plot_box_distribution(
-        {'normal': filtered_obj_array},
-        save_path="{}/filtered_objective_distribution.png".format(output_direct))
+    raw_output_data_dict = {}
+    output_data_dict = {}
+    sink_tissue_contribution_dict = {}
+    sink_label = 'sink'
 
-    if not split:
-        common_functions.plot_heat_map(
-            glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-            cbar_name='Glucose Contribution', save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
-        if len(well_fit_glucose_contri_list) == 0:
-            warnings.warn('No point fit the constraint for contribution of carbon sources!')
-        common_functions.plot_violin_distribution(
-            {'normal': np.array(well_fit_glucose_contri_list)},
-            {'normal': color_set.blue},
-            save_path="{}/glucose_contribution_violin.png".format(output_direct))
-    else:
-        common_functions.plot_heat_map(
-            glucose_contri_matrix[0], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-            cbar_name='Glucose Contribution',
-            save_path="{}/glucose_contribution_heatmap_source.png".format(output_direct))
-        common_functions.plot_heat_map(
-            glucose_contri_matrix[1], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-            cbar_name='Glucose Contribution',
-            save_path="{}/glucose_contribution_heatmap_sink.png".format(output_direct))
-        if len(well_fit_glucose_contri_list[0]) == 0:
-            warnings.warn('No point fit the constraint for contribution of carbon sources!')
-        common_functions.plot_violin_distribution(
-            {'normal': np.array(well_fit_glucose_contri_list[0])},
-            {'normal': color_set.blue},
-            save_path="{}/glucose_contribution_violin_source.png".format(output_direct))
-        common_functions.plot_violin_distribution(
-            {'normal': np.array(well_fit_glucose_contri_list[1])},
-            {'normal': color_set.blue},
-            save_path="{}/glucose_contribution_violin_sink.png".format(output_direct))
-
-    raw_output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-    }
-    output_data_dict = {
-        'valid_matrix': valid_matrix,
-        'glucose_contri_matrix': glucose_contri_matrix,
-        'objective_function_matrix': objective_function_matrix,
-        'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
-        'filtered_obj_array': filtered_obj_array
-    }
-
-    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(raw_output_data_dict, f_out)
-    with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(output_data_dict, f_out)
-
-    plt.show()
-
-
-def final_processing_dynamic_range_model34(
-        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    output_direct = const_parameter_dict['output_direct']
-    free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
-    ternary_sigma = const_parameter_dict['ternary_sigma']
-    ternary_resolution = const_parameter_dict['ternary_resolution']
-    obj_tolerance = const_parameter_dict['obj_tolerance']
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-
-    valid_point_list = []
-    invalid_point_list = []
-    well_fit_three_contri_list = []
-    obj_diff_value_list = []
-
-    for solver_result, processed_dict, var_parameter in zip(
-            result_list, processed_result_list, var_parameter_list):
-        constant_fluxes_dict = var_parameter['constant_flux_dict']
-        free_fluxes_array = np.array([constant_fluxes_dict[flux_name] for flux_name in free_fluxes_name_list])
-        if processed_dict['valid']:
-            valid_point_list.append(free_fluxes_array)
-            obj_diff_value_list.append(processed_dict['obj_diff'])
-            if processed_dict['obj_diff'] < obj_tolerance:
-                well_fit_three_contri_list.append(processed_dict['contribution_array'])
-        else:
-            invalid_point_list.append(free_fluxes_array)
-
-    if len(well_fit_three_contri_list) == 0:
-        raise ValueError('No point fit the constraint for contribution of carbon sources!')
-    contribution_matrix = np.array(well_fit_three_contri_list)
-    filtered_obj_array = np.array(obj_diff_value_list)
-    filtered_obj_array = filtered_obj_array[filtered_obj_array < obj_tolerance]
-    raw_output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-    }
-    output_data_dict = {
-        'valid_point_list': valid_point_list,
-        'invalid_point_list': invalid_point_list,
-        'contribution_matrix': contribution_matrix,
-        'obj_diff_value_list': obj_diff_value_list,
-        'filtered_obj_array': filtered_obj_array,
-        'well_fit_three_contri_list': well_fit_three_contri_list,
-    }
-
-    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(raw_output_data_dict, f_out)
-    with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(output_data_dict, f_out)
-
-    # Ternary plot for density of contribution
-    common_functions.plot_ternary_density(
-        contribution_matrix, ternary_sigma, ternary_resolution,
-        save_path="{}/glucose_contribution_heatmap.png".format(output_direct))
-    # Violin plot for objective function
-    common_functions.plot_violin_distribution(
-        {'normal': np.array(obj_diff_value_list)},
-        {'normal': color_set.blue},
-        cutoff=obj_tolerance,
-        save_path="{}/objective_function_diff_violin.png".format(output_direct))
-    common_functions.plot_box_distribution(
-        {'normal': filtered_obj_array},
-        save_path="{}/filtered_objective_distribution.png".format(output_direct))
-    # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
-    # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
-
-    plt.show()
-
-
-def final_processing_dynamic_range_model5(
-        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    output_direct = const_parameter_dict['output_direct']
-    free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
-    obj_tolerance = const_parameter_dict['obj_tolerance']
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-
-    valid_point_list = []
-    invalid_point_list = []
-    well_fit_glucose_contri_list = []
-    obj_diff_value_list = []
-
-    for solver_result, processed_dict, var_parameter in zip(
-            result_list, processed_result_list, var_parameter_list):
-        constant_fluxes_dict = var_parameter['constant_flux_dict']
-        free_fluxes_array = np.array([constant_fluxes_dict[flux_name] for flux_name in free_fluxes_name_list])
-        if processed_dict['valid']:
-            valid_point_list.append(free_fluxes_array)
-            obj_diff_value_list.append(processed_dict['obj_diff'])
-            if processed_dict['obj_diff'] < obj_tolerance:
-                well_fit_glucose_contri_list.append(processed_dict['glucose_contribution'])
-        else:
-            invalid_point_list.append(free_fluxes_array)
-
-    if len(well_fit_glucose_contri_list) == 0:
-        raise ValueError('No point fit the constraint for contribution of carbon sources!')
-    filtered_obj_array = np.array(obj_diff_value_list)
-    filtered_obj_array = filtered_obj_array[filtered_obj_array < obj_tolerance]
-    raw_output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-    }
-    output_data_dict = {
-        'valid_point_list': valid_point_list,
-        'invalid_point_list': invalid_point_list,
-        'obj_diff_value_list': obj_diff_value_list,
-        'filtered_obj_array': filtered_obj_array,
-        'well_fit_glucose_contri_list': well_fit_glucose_contri_list,
-    }
-    with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(raw_output_data_dict, f_out)
-    with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
-        pickle.dump(output_data_dict, f_out)
-
-    # Violin plot for objective function
-    # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
-    # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
-    common_functions.plot_violin_distribution(
-        {'normal': np.array(well_fit_glucose_contri_list)},
-        {'normal': color_set.blue},
-        save_path="{}/glucose_contribution_violin.png".format(output_direct))
-    common_functions.plot_violin_distribution(
-        {'normal': np.array(obj_diff_value_list)},
-        {'normal': color_set.blue},
-        cutoff=obj_tolerance,
-        save_path="{}/objective_function_diff_violin.png".format(output_direct))
-    common_functions.plot_box_distribution(
-        {'normal': filtered_obj_array},
-        save_path="{}/filtered_objective_distribution.png".format(output_direct))
-
-    plt.show()
-
-
-def final_processing_all_tissue_model12(
-        result_list, processed_result_list, const_parameter_dict, var_parameter_list):
-    f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
-    g2_free_flux: config.FreeVariable = const_parameter_dict['g2_free_flux']
-    output_direct = const_parameter_dict['output_direct']
-    obj_tolerance = const_parameter_dict['obj_tolerance']
-    tissue_name_list = const_parameter_dict['tissue_name_list']
-    split = const_parameter_dict['split']
-    if not os.path.isdir(output_direct):
-        os.mkdir(output_direct)
-
-    valid_matrix = np.zeros([f1_free_flux.total_num, g2_free_flux.total_num])
-    valid_matrix_dict = {
-        tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-    if not split:
-        glucose_contri_matrix_dict = {
-            tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-        well_fit_glucose_contri_dict = {
-            tissue_name: [] for tissue_name in tissue_name_list}
-    else:
-        glucose_contri_matrix_dict = {
-            tissue_name: (np.zeros_like(valid_matrix), np.zeros_like(valid_matrix))
-            for tissue_name in tissue_name_list}
-        well_fit_glucose_contri_dict = {
-            tissue_name: ([], []) for tissue_name in tissue_name_list}
-    objective_function_matrix_dict = {
-        tissue_name: np.zeros_like(valid_matrix) for tissue_name in tissue_name_list}
-    filtered_obj_list_dict = {
-        tissue_name: [] for tissue_name in tissue_name_list}
-
-    for solver_result, processed_dict in zip(result_list, processed_result_list):
-        tissue_name = solver_result.label['tissue']
-        matrix_loc = solver_result.label['matrix_loc']
-        if processed_dict['valid']:
-            obj_diff = processed_dict['obj_diff']
-            glucose_contribution = processed_dict['glucose_contribution']
-            valid_matrix_dict[tissue_name][matrix_loc] = 1
-            objective_function_matrix_dict[tissue_name][matrix_loc] = obj_diff
-            glucose_contri_matrix = glucose_contri_matrix_dict[tissue_name]
-            if not split:
-                glucose_contri_matrix[matrix_loc] = glucose_contribution
-            else:
-                glucose_contri_matrix[0][matrix_loc], glucose_contri_matrix[1][matrix_loc] = glucose_contribution
-            if obj_diff < obj_tolerance:
-                well_fit_glucose_contri_list = well_fit_glucose_contri_dict[tissue_name]
-                if not split:
-                    well_fit_glucose_contri_list.append(glucose_contribution)
-                else:
-                    well_fit_glucose_contri_list[0].append(glucose_contribution[0])
-                    well_fit_glucose_contri_list[1].append(glucose_contribution[1])
-                filtered_obj_list_dict[tissue_name].append(obj_diff)
-        else:
-            valid_matrix_dict[tissue_name][matrix_loc] = 0
-            glucose_contri_matrix = glucose_contri_matrix_dict[tissue_name]
-            if not split:
-                glucose_contri_matrix[matrix_loc] = np.nan
-            else:
-                glucose_contri_matrix[0][matrix_loc] = np.nan
-                glucose_contri_matrix[1][matrix_loc] = np.nan
-            objective_function_matrix_dict[tissue_name][matrix_loc] = np.nan
-
-    filtered_obj_function_matrix_dict = {}
-    for tissue_name, current_obj_matrix in objective_function_matrix_dict.items():
-        filtered_obj_matrix = current_obj_matrix.copy()
-        filtered_obj_matrix[current_obj_matrix > obj_tolerance] = np.nan
-        filtered_obj_function_matrix_dict[tissue_name] = filtered_obj_matrix
-    filtered_obj_array_dict = {
-        tissue_name: np.array(filtered_obj_list)
-        for tissue_name, filtered_obj_list in filtered_obj_list_dict.items()}
-
-    # well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_dict[tissue_name])
-
-    # filtered_obj_function_matrix = objective_function_matrix.copy()
-    # filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
     for tissue_name in tissue_name_list:
-        if split:
-            continue
-        common_functions.plot_heat_map(
-            valid_matrix_dict[tissue_name], g2_free_flux, f1_free_flux,
-            save_path="{}/dynamic_range_{}.png".format(output_direct, tissue_name))
+        valid_matrix = valid_matrix_dict[tissue_name]
+        objective_function_matrix = objective_function_matrix_dict[tissue_name]
+        glucose_contri_matrix_dict = glucose_contri_matrix_tissue_dict[tissue_name]
+        well_fit_glucose_contri_dict = {
+            contribution_type: np.array(glucose_contri_list)
+            for contribution_type, glucose_contri_list in well_fit_glucose_contri_tissue_dict[tissue_name].items()}
+        if all_tissue and sink_label in well_fit_glucose_contri_dict:
+            sink_tissue_contribution_dict[tissue_name] = well_fit_glucose_contri_dict[sink_label]
+        feasible_flux_distribution_dict = {
+            flux_name: np.array(flux_list)
+            for flux_name, flux_list in feasible_flux_distribution_tissue_dict[tissue_name].items()
+            if flux_name not in raw_constant_flux_dict}
+
+        filtered_obj_function_matrix = objective_function_matrix.copy()
+        filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
+        filtered_obj_array = np.reshape(filtered_obj_function_matrix, [-1])
+        filtered_obj_array = filtered_obj_array[~np.isnan(filtered_obj_array)]
+
+        raw_output_data_dict[tissue_name] = {
+            'result_list': result_list,
+            'processed_result_list': processed_result_list,
+        }
+        output_data_dict[tissue_name] = {
+            'valid_matrix': valid_matrix,
+            'objective_function_matrix': objective_function_matrix,
+            'filtered_obj_array': filtered_obj_array,
+            'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
+            'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
+            'feasible_flux_distribution_dict': feasible_flux_distribution_dict,
+        }
+
         # common_functions.plot_heat_map(
-        #     glucose_contri_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-        #     cbar_name='Glucose Contribution',
-        #     save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
+        #     valid_matrix, g2_free_flux, f1_free_flux,
+        #     save_path="{}/dynamic_range_{}.png".format(output_direct, tissue_name))
+        # common_functions.plot_heat_map(
+        #     objective_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        #     cbar_name='Objective difference',
+        #     title=tissue_name,
+        #     save_path="{}/objective_function_{}.png".format(output_direct, tissue_name))
         common_functions.plot_heat_map(
-            objective_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-            cbar_name='Objective difference',
-            save_path="{}/objective_function_{}.png".format(output_direct, tissue_name))
-        common_functions.plot_heat_map(
-            filtered_obj_function_matrix_dict[tissue_name], g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+            filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
             cbar_name='Filtered objective difference',
+            title=tissue_name,
             save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
+        common_functions.plot_box_distribution(
+            {'normal': filtered_obj_array},
+            title=tissue_name,
+            save_path="{}/filtered_objective_distribution_{}.png".format(output_direct, tissue_name))
+        common_functions.plot_violin_distribution(
+            well_fit_glucose_contri_dict,
+            color_set.blue,
+            title=tissue_name,
+            save_path="{}/glucose_contribution_violin_{}.png".format(output_direct, tissue_name))
+        common_functions.plot_box_distribution(
+            feasible_flux_distribution_dict, title=tissue_name,
+            save_path="{}/flux_distribution_boxplot_{}.png".format(output_direct, tissue_name))
 
-    common_functions.plot_box_distribution(
-        filtered_obj_array_dict,
-        save_path="{}/complete_objective_distribution_comparison.png".format(output_direct))
-    # well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_dict[tissue_name])
-    # if len(well_fit_glucose_contri_dict[tissue_name_list[0]]) == 0:
-    #     raise ValueError('No point fit the constraint for contribution of carbon sources!')
-    if not split:
-        new_well_fit_glucose_contri_dict = {}
-        for tissue_name, well_fit_glucose_contri_list in well_fit_glucose_contri_dict.items():
-            if len(well_fit_glucose_contri_list) == 0:
-                raise ValueError('No point fit the constraint for contribution of carbon sources!')
-            new_well_fit_glucose_contri_dict[tissue_name] = np.array(well_fit_glucose_contri_list)
-        common_functions.plot_violin_distribution(
-            new_well_fit_glucose_contri_dict,
-            {tissue_name: color_set.blue for tissue_name in tissue_name_list},
-            save_path="{}/glucose_contribution_violin_all_tissue.png".format(output_direct))
-    else:
-        new_well_fit_glucose_contri_dict = ({}, {})
-        for tissue_name, well_fit_glucose_contri_list in well_fit_glucose_contri_dict.items():
-            if len(well_fit_glucose_contri_list[0]) == 0:
-                raise ValueError('No point fit the constraint for contribution of carbon sources!')
-            new_well_fit_glucose_contri_dict[0][tissue_name] = np.array(well_fit_glucose_contri_list[0])
-            new_well_fit_glucose_contri_dict[1][tissue_name] = np.array(well_fit_glucose_contri_list[1])
-        common_functions.plot_violin_distribution(
-            new_well_fit_glucose_contri_dict[0],
-            {tissue_name: color_set.blue for tissue_name in tissue_name_list},
-            save_path="{}/glucose_contribution_violin_all_tissue_source.png".format(output_direct))
-        common_functions.plot_violin_distribution(
-            new_well_fit_glucose_contri_dict[1],
-            {tissue_name: color_set.blue for tissue_name in tissue_name_list},
-            save_path="{}/glucose_contribution_violin_all_tissue_sink.png".format(output_direct))
+        # for contribution_type, glucose_contri_matrix in glucose_contri_matrix_dict.items():
+        #     common_functions.plot_heat_map(
+        #         glucose_contri_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        #         cbar_name='Glucose Contribution',
+        #         title=tissue_name,
+        #         save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, contribution_type))
 
-    raw_output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-    }
+    if all_tissue:
+        common_functions.plot_violin_distribution(
+            sink_tissue_contribution_dict,
+            color_set.blue,
+            title='all_tissue',
+            save_path="{}/all_tissue_glucose_contribution_violin.png".format(output_direct))
+
     with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(raw_output_data_dict, f_out)
-
-    output_data_dict = {
-        'valid_matrix_dict': valid_matrix_dict,
-        'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
-        'objective_function_matrix_dict': objective_function_matrix_dict,
-        'filtered_obj_array_dict': filtered_obj_array_dict,
-        'well_fit_glucose_contri_dict': new_well_fit_glucose_contri_dict
-    }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
     plt.show()
 
 
-def final_processing_all_tissue_model34(
+def final_processing_dynamic_range_model345(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     output_direct = const_parameter_dict['output_direct']
     free_fluxes_name_list = const_parameter_dict['free_fluxes_name_list']
     ternary_sigma = const_parameter_dict['ternary_sigma']
     ternary_resolution = const_parameter_dict['ternary_resolution']
     obj_tolerance = const_parameter_dict['obj_tolerance']
-    tissue_name_list = const_parameter_dict['tissue_name_list']
+    model_name = const_parameter_dict['model_name']
+    parallel_num = const_parameter_dict['parallel_num']
+    raw_constant_flux_dict = const_parameter_dict['raw_constant_flux_dict']
+    all_tissue = False
+    ternary_mean = False
+    tissue_name = constant_set.default_tissue_name
+    tissue_name_list = [tissue_name]
+    if 'all_tissue' in model_name:
+        ternary_mean = True
+        all_tissue = True
+        tissue_name_list = const_parameter_dict['tissue_name_list']
     if not os.path.isdir(output_direct):
         os.mkdir(output_direct)
 
-    valid_point_dict = {tissue_name: [] for tissue_name in tissue_name_list}
-    invalid_point_dict = {tissue_name: [] for tissue_name in tissue_name_list}
-    well_fit_three_contri_dict = {tissue_name: [] for tissue_name in tissue_name_list}
-    obj_diff_value_dict = {tissue_name: [] for tissue_name in tissue_name_list}
-    filtered_obj_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    well_fitted_count_dict = {tissue_name: 0 for tissue_name in tissue_name_list}
+
+    valid_point_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    invalid_point_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    objective_value_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    well_fit_contri_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+    feasible_flux_distribution_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
 
     for solver_result, processed_dict, var_parameter in zip(
             result_list, processed_result_list, var_parameter_list):
-        tissue_name = solver_result.label['tissue']
+        if all_tissue:
+            tissue_name = solver_result.label['tissue']
+
+        valid_point_list = valid_point_list_dict[tissue_name]
+        invalid_point_list = invalid_point_list_dict[tissue_name]
+        objective_value_list = objective_value_list_dict[tissue_name]
+        well_fit_contri_list_dict = well_fit_contri_tissue_dict[tissue_name]
+        feasible_flux_distribution_dict = feasible_flux_distribution_tissue_dict[tissue_name]
+
         constant_fluxes_dict = var_parameter['constant_flux_dict']
+        obj_diff = processed_dict['obj_diff']
+        valid = processed_dict['valid']
+        contribution_dict = processed_dict['contribution_dict']
         free_fluxes_array = np.array([constant_fluxes_dict[flux_name] for flux_name in free_fluxes_name_list])
-        if processed_dict['valid']:
-            valid_point_dict[tissue_name].append(free_fluxes_array)
-            obj_diff = processed_dict['obj_diff']
-            obj_diff_value_dict[tissue_name].append(obj_diff)
+        objective_value_list.append(obj_diff)
+        if valid:
+            valid_point_list.append(free_fluxes_array)
             if obj_diff < obj_tolerance:
-                well_fit_three_contri_dict[tissue_name].append(processed_dict['contribution_array'])
-                filtered_obj_list_dict[tissue_name].append(obj_diff)
+                result_dict = solver_result.result_dict
+                for flux_name, flux_value in result_dict.items():
+                    if flux_name not in feasible_flux_distribution_dict:
+                        feasible_flux_distribution_dict[flux_name] = []
+                    feasible_flux_distribution_dict[flux_name].append(flux_value)
+                for contribution_type, contribution_vector in contribution_dict.items():
+                    if contribution_type not in well_fit_contri_list_dict:
+                        well_fit_contri_list_dict[contribution_type] = []
+                    well_fitted_count_dict[tissue_name] += 1
+                    well_fit_contri_list_dict[contribution_type].append(contribution_vector)
         else:
-            invalid_point_dict[tissue_name].append(free_fluxes_array)
+            invalid_point_list.append(free_fluxes_array)
 
-    # if len(well_fit_three_contri_list) == 0:
-    #     raise ValueError('No point fit the constraint for contribution of carbon sources!')
+    for tissue_name, well_fitted_count in well_fitted_count_dict.items():
+        if well_fitted_count == 0:
+            raise ValueError('No point fit the constraint for contribution of carbon sources!: {}'.format(tissue_name))
 
-    # contribution_matrix = np.array(well_fit_three_contri_list)
-    contribution_matrix_dict = {
-        key: np.array(value) for key, value in well_fit_three_contri_dict.items()}
-    filtered_obj_array_dict = {
-        tissue_name: np.array(filtered_obj_list)
-        for tissue_name, filtered_obj_list in filtered_obj_list_dict.items()}
-    common_functions.plot_box_distribution(
-        filtered_obj_array_dict,
-        save_path="{}/complete_objective_distribution_comparison.png".format(output_direct))
+    raw_output_data_dict = {}
+    output_data_dict = {}
+    project_list = []
 
-    raw_output_data_dict = {
-        'result_list': result_list,
-        'processed_result_list': processed_result_list,
-    }
+    for tissue_name in tissue_name_list:
+        valid_point_list = valid_point_list_dict[tissue_name]
+        invalid_point_list = invalid_point_list_dict[tissue_name]
+        objective_value_list = objective_value_list_dict[tissue_name]
+        well_fit_contri_list_dict = {
+            contribution_type: np.array(contri_list)
+            for contribution_type, contri_list in well_fit_contri_tissue_dict[tissue_name].items()}
+        feasible_flux_distribution_dict = {
+            flux_name: np.array(flux_list)
+            for flux_name, flux_list in feasible_flux_distribution_tissue_dict[tissue_name].items()
+            if flux_name not in raw_constant_flux_dict}
+
+        obj_diff_array = np.array(objective_value_list)
+        obj_diff_array = obj_diff_array[~np.isnan(obj_diff_array)]
+        filtered_obj_array = obj_diff_array[obj_diff_array < obj_tolerance]
+        raw_output_data_dict[tissue_name] = {
+            'result_list': result_list,
+            'processed_result_list': processed_result_list,
+        }
+        output_data_dict[tissue_name] = {
+            'valid_point_list': valid_point_list,
+            'invalid_point_list': invalid_point_list,
+            'obj_diff_array': obj_diff_array,
+            'filtered_obj_array': filtered_obj_array,
+            'well_fit_contri_list_dict': well_fit_contri_list_dict,
+            'feasible_flux_distribution_dict': feasible_flux_distribution_dict,
+        }
+
+        # Ternary plot for density of contribution
+
+        if "model5" in model_name:
+            contribution_matrix_dict = {
+                contribution_type: contribution_matrix[:, 0]
+                for contribution_type, contribution_matrix in well_fit_contri_list_dict.items()}
+            kwargs = {
+                'data_dict': contribution_matrix_dict,
+                'color_dict': color_set.blue,
+                'title': tissue_name,
+                'save_path': "{}/glucose_contribution_violin_{}.png".format(output_direct, tissue_name)}
+            project_list.append((common_functions.plot_violin_distribution, kwargs))
+        else:
+            for contribution_type, contribution_matrix in well_fit_contri_list_dict.items():
+                kwargs = {
+                    'tri_data_matrix': contribution_matrix, 'sigma': ternary_sigma, 'bin_num': ternary_resolution,
+                    'title': "{}_{}".format(contribution_type, tissue_name),
+                    'mean': ternary_mean,
+                    'save_path': "{}/test_glucose_contribution_heatmap_{}_{}.png".format(
+                        output_direct, contribution_type, tissue_name)}
+                project_list.append((common_functions.plot_ternary_density, kwargs))
+                # common_functions.plot_ternary_density(
+                #     contribution_matrix, ternary_sigma, ternary_resolution,
+                #     save_path="{}/glucose_contribution_heatmap_{}_{}.png".format(
+                #         output_direct, contribution_type, tissue_name))
+        # Violin plot for objective function
+        kwargs = {
+            'data_dict': {'normal': obj_diff_array},
+            'color_dict': color_set.blue,
+            'cutoff': obj_tolerance,
+            'title': tissue_name,
+            'save_path': "{}/objective_function_diff_violin_{}.png".format(output_direct, tissue_name)}
+        project_list.append((common_functions.plot_violin_distribution, kwargs))
+        kwargs = {
+            'data_dict': {'normal': filtered_obj_array},
+            'title': tissue_name,
+            'save_path': "{}/filtered_objective_distribution_{}.png".format(output_direct, tissue_name)}
+        project_list.append((common_functions.plot_box_distribution, kwargs))
+        kwargs = {
+            'data_dict': feasible_flux_distribution_dict,
+            'title': tissue_name,
+            'save_path': "{}/flux_distribution_boxplot_{}.png".format(output_direct, tissue_name)}
+        project_list.append((common_functions.plot_box_distribution, kwargs))
+
+    with mp.Pool(parallel_num) as pool:
+        pool.map(func_parallel_wrap, project_list)
+
     with gzip.open("{}/raw_output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(raw_output_data_dict, f_out)
-
-    output_data_dict = {
-        'valid_point_dict': valid_point_dict,
-        'invalid_point_dict': invalid_point_dict,
-        'obj_diff_value_dict': obj_diff_value_dict,
-        'contribution_matrix_dict': contribution_matrix_dict,
-        'filtered_obj_array_dict': filtered_obj_array_dict,
-    }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    # Ternary plot for density of contribution
-    p_list = []
-    for tissue_name, contribution_matrix in contribution_matrix_dict.items():
-        p = mp.Process(
-            target=common_functions.plot_ternary_density, args=(contribution_matrix, ternary_sigma, ternary_resolution),
-            kwargs={'save_path': "{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name)})
-        p.start()
-        p_list.append(p)
-        # common_functions.plot_ternary_density(
-        #     contribution_matrix, ternary_sigma, ternary_resolution,
-        #     save_path="{}/glucose_contribution_heatmap_{}.png".format(output_direct, tissue_name))
-    [p.join() for p in p_list]
-    # Violin plot for objective function
-    for tissue_name, obj_diff_value_list in obj_diff_value_dict.items():
-        p = mp.Process(
-            target=common_functions.plot_violin_distribution, args=(
-                {'normal': np.array(obj_diff_value_list)}, {'normal': color_set.blue}),
-            kwargs={'save_path': "{}/objective_function_diff_violin_{}.png".format(output_direct, tissue_name),
-                    "cutoff": obj_tolerance})
-        p.start()
-        p_list.append(p)
-        # common_functions.plot_violin_distribution(
-        #     {'normal': np.array(obj_diff_value_list)},
-        #     {'normal': color_set.blue},
-        #     cutoff=obj_tolerance,
-        #     save_path="{}/objective_function_diff_violin_{}.png".format(output_direct, tissue_name))
-    [p.join() for p in p_list]
-    # fig, ax = main_functions.violin_plot({'normal': np.array(obj_diff_value_list)})
-    # fig.savefig("{}/objective_function_diff_violin.png".format(output_direct), dpi=fig.dpi)
-
-    plt.show()
+    # plt.show()
 
 
 def final_processing_parameter_sensitivity_model1(
@@ -1589,51 +1411,65 @@ def final_processing_parameter_sensitivity_model1(
     objective_function_median_dict = {
         sample_type: [] for sample_type in sample_type_list}
     well_fit_glucose_contri_dict = {
-        sample_type: [] for sample_type in sample_type_list}
-    well_fit_glucose_contri_array_dict = {
-        sample_type: [] for sample_type in sample_type_list}
-    well_fit_median_contri_dict = {
-        sample_type: [] for sample_type in sample_type_list}
+        sample_type: {} for sample_type in sample_type_list}
 
     for solver_result, processed_dict in zip(result_list, processed_result_list):
         sample_type = solver_result.label['sample_type']
         sample_index = solver_result.label['sample_index']
-        if processed_dict['valid']:
-            if sample_index >= len(objective_function_list_dict[sample_type]):
-                objective_function_list_dict[sample_type].append([])
-                well_fit_glucose_contri_dict[sample_type].append([])
-            objective_function_list_dict[sample_type][sample_index].append(processed_dict['obj_diff'])
-            if processed_dict['obj_diff'] < obj_tolerance:
-                well_fit_glucose_contri_dict[sample_type][sample_index].append(
-                    processed_dict['glucose_contribution'])
+        obj_diff = processed_dict['obj_diff']
+        contribution_dict = processed_dict['glucose_contribution']
+        valid = processed_dict['valid']
+        glucose_contri_list_dict = well_fit_glucose_contri_dict[sample_type]
+        objective_function_list = objective_function_list_dict[sample_type]
+
+        for contribution_type, contribution_vector in contribution_dict.items():
+            if contribution_type not in glucose_contri_list_dict:
+                glucose_contri_list_dict[contribution_type] = []
+            current_glucose_contribution_dict = glucose_contri_list_dict[contribution_type]
+            if valid:
+                if sample_index >= len(objective_function_list_dict[sample_type]):
+                    objective_function_list.append([])
+                    current_glucose_contribution_dict.append([])
+                objective_function_list[sample_index].append(obj_diff)
+                if obj_diff < obj_tolerance:
+                    current_glucose_contribution_dict[sample_index].append(contribution_vector[0])
 
     for sample_type, sample_obj_list in objective_function_list_dict.items():
         for sample_index, obj_list in enumerate(sample_obj_list):
             objective_function_median_dict[sample_type].append(np.median(obj_list))
 
-    for sample_type, sample_contri_list in well_fit_glucose_contri_dict.items():
-        for sample_index, contri_list in enumerate(sample_contri_list):
-            if len(contri_list) == 0:
-                continue
-            new_array = np.array(contri_list)
-            well_fit_glucose_contri_array_dict[sample_type].append(new_array)
-            well_fit_median_contri_dict[sample_type].append(np.median(new_array))
+    well_fit_glucose_contri_array_dict = {
+        sample_type: {} for sample_type in sample_type_list}
+    well_fit_median_contri_dict = {
+        sample_type: {} for sample_type in sample_type_list}
+    for sample_type, glucose_contri_list_dict in well_fit_glucose_contri_dict.items():
+        for contribution_type, sample_contri_list in glucose_contri_list_dict.items():
+            contri_array_list = []
+            median_list = []
+            for sample_index, contri_list in enumerate(sample_contri_list):
+                if len(contri_list) == 0:
+                    continue
+                new_array = np.array(contri_list)
+                contri_array_list.append(new_array)
+                median_list.append(np.median(new_array))
+            well_fit_glucose_contri_array_dict[sample_type][contribution_type] = contri_array_list
+            well_fit_median_contri_dict[sample_type][contribution_type] = median_list
 
     for sample_type in sample_type_list:
         common_functions.plot_violin_distribution(
-            {sample_type: well_fit_median_contri_dict[sample_type]},
-            {sample_type: color_set.purple},
-            save_path="{}/glucose_contribution_violin_parameter_sensitivity_{}.png".format(
-                output_direct, sample_type))
-        common_functions.plot_violin_distribution(
             {sample_type: objective_function_median_dict[sample_type]},
-            {sample_type: color_set.purple},
-            cutoff=obj_tolerance,
+            color_set.purple, cutoff=obj_tolerance,
             save_path="{}/objective_function_violin_parameter_sensitivity_{}.png".format(
+                output_direct, sample_type))
+        current_sample_type_median_dict = well_fit_median_contri_dict[sample_type]
+        common_functions.plot_violin_distribution(
+            current_sample_type_median_dict,
+            color_set.purple, title=sample_type,
+            save_path="{}/glucose_contribution_violin_parameter_sensitivity_{}.png".format(
                 output_direct, sample_type))
 
     output_data_dict = {
-        'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
+        'well_fit_glucose_contri_array_dict': well_fit_glucose_contri_array_dict,
         'objective_function_list_dict': objective_function_list_dict
     }
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
@@ -1641,973 +1477,3 @@ def final_processing_parameter_sensitivity_model1(
 
     plt.show()
 
-
-def model1_parameters(test=False):
-    model_name = "model1"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    data_loader_func = data_loader_rabinowitz
-    data_collection_func = mid_data_loader_model1234
-    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_dynamic_range_model12
-    model_construction_func = model1_construction
-    parameter_construction_func = dynamic_range_model12
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-
-    min_flux_value = 1
-    max_flux_value = 1000  # 5000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.1
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test:
-        f1_num = 51
-        f1_display_interv = 50
-        g2_num = 51
-        g2_display_interv = 50
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-    return locals()
-
-
-def model2_parameters(test=False):
-    model_name = "model2"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    data_loader_func = data_loader_dan
-    data_collection_func = mid_data_loader_model1234
-    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_dynamic_range_model12
-    model_construction_func = model2_construction
-    parameter_construction_func = dynamic_range_model12
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(9)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Jin', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Jin': 111.1, 'Fcirc_lac': 500}
-
-    min_flux_value = 1
-    max_flux_value = 2000
-    max_free_flux_value = 250
-    optimization_repeat_time = 10
-    obj_tolerance = 0.25
-    f1_range = [min_flux_value, max_free_flux_value]
-    g2_range = [min_flux_value, max_free_flux_value]
-
-    if test:
-        f1_num = 101
-        f1_display_interv = 100
-        g2_num = 101
-        g2_display_interv = 100
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-
-    return locals()
-
-
-def model3_parameters(test=False):
-    model_name = "model3"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    data_loader_func = data_loader_rabinowitz
-    data_collection_func = mid_data_loader_model1234
-    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_processing_dynamic_range_model34
-    model_construction_func = model3_construction
-    parameter_construction_func = dynamic_range_model34
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 150}
-
-    min_flux_value = 1
-    max_flux_value = 1000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.1
-    ternary_sigma = 0.15
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test:
-        total_point_num = int(3e3)
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        ternary_resolution = int(2 ** 8)
-
-    return locals()
-
-
-def model4_parameters(test=False):
-    model_name = "model4"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    data_loader_func = data_loader_dan
-    data_collection_func = mid_data_loader_model1234
-    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_processing_dynamic_range_model34
-    model_construction_func = model4_construction
-    parameter_construction_func = dynamic_range_model34
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(11)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Jin']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Jin': 111.1, 'Fcirc_lac': 500, 'Fcirc_pyr': 100}
-    fcirc_glc_max = 250
-
-    min_flux_value = 1
-    max_flux_value = 2000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.25
-    ternary_sigma = 0.15
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-    if test:
-        total_point_num = int(3e3)
-        # point_interval_list = [50, 50, 20, 20, 100]
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        # point_interval_list = [25, 25, 5, 5, 25]
-        ternary_resolution = int(2 ** 8)
-
-    return locals()
-
-
-def model5_parameters(test=False):
-    model_name = "model5"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink1_tissue_marker': constant_set.heart_marker,
-        'sink2_tissue_marker': constant_set.muscle_marker}
-    data_loader_func = data_loader_rabinowitz
-    data_collection_func = mid_data_loader_model5
-    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model5, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model5
-    hook_after_all_iterations = final_processing_dynamic_range_model5
-    model_construction_func = model5_construction
-    parameter_construction_func = dynamic_range_model34
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['H{}'.format(i + 1) for i in range(9)] + ['Fcirc_lac', 'Fcirc_glc']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'F10': 100, 'Fcirc_lac': 374.4, 'Fcirc_glc': 150.9}
-
-    min_flux_value = 1
-    max_flux_value = 1000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.15
-    ternary_sigma = 0.15
-
-    free_fluxes_name_list = ['F1', 'G2', 'H1', 'F3', 'G4']
-    free_fluxes_range_list = [
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test:
-        total_point_num = int(3e3)
-        # point_interval_list = [50, 50, 20, 20, 100]
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        # point_interval_list = [25, 25, 5, 5, 25]
-        ternary_resolution = int(2 ** 8)
-
-    return locals()
-
-
-def model6_parameters(test=False):
-    model_name = "model6"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    data_loader_func = data_loader_dan
-    data_collection_func = mid_data_loader_model1234
-
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_dynamic_range_model12
-    model_construction_func = model6_construction
-    parameter_construction_func = dynamic_range_model12
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Jin', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Jin': 111.1, 'F10': 100, 'Fcirc_lac': 400}
-
-    min_flux_value = 1
-    max_flux_value = 2000  # 8000
-    max_free_flux_value = 300
-    optimization_repeat_time = 10
-    obj_tolerance = 0.25
-    f1_range = [min_flux_value, max_free_flux_value]
-    g2_range = [min_flux_value, max_free_flux_value]
-
-    if test:
-        f1_num = 51
-        f1_display_interv = 50
-        g2_num = 51
-        g2_display_interv = 50
-    else:
-        f1_num = 1500
-        f1_display_interv = 250
-        g2_num = 1500
-        g2_display_interv = 250
-
-    return locals()
-
-
-def model7_parameters(test=False):
-    model_name = "model7"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    data_loader_func = data_loader_dan
-    data_collection_func = mid_data_loader_model1234
-    # model_mid_data_dict = data_loader_dan(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_processing_dynamic_range_model34
-    model_construction_func = model7_construction
-    parameter_construction_func = dynamic_range_model34
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Jin']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Jin': 111.1, 'F12': 150, 'Fcirc_lac': 400, 'Fcirc_pyr': 70}
-    fcirc_glc_max = 200
-
-    min_flux_value = 1
-    max_flux_value = 2000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.4
-    ternary_sigma = 0.15
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, fcirc_glc_max],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test:
-        total_point_num = int(3e3)
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(3e6)
-        ternary_resolution = int(2 ** 8)
-
-    return locals()
-
-
-def model1_all_tissue(test=False):
-    model_name = "model1_all_tissue"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker,
-        'sink_tissue_marker_list': [
-            constant_set.heart_marker, constant_set.brain_marker, constant_set.muscle_marker,
-            constant_set.kidney_marker, constant_set.lung_marker, constant_set.pancreas_marker,
-            constant_set.intestine_marker, constant_set.spleen_marker]}
-    data_loader_func = data_loader_rabinowitz
-    data_collection_func = mid_data_loader_all_tissue
-
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_all_tissue_model12
-    model_construction_func = model1_construction
-    parameter_construction_func = all_tissue_model1
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-    # constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 40}
-
-    min_flux_value = 1
-    max_flux_value = 1000
-    # max_flux_value = 500
-    optimization_repeat_time = 10
-    obj_tolerance = 0.1
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test:
-        f1_num = 31
-        f1_display_interv = 30
-        g2_num = 31
-        g2_display_interv = 30
-    else:
-        f1_num = 1000
-        f1_display_interv = 250
-        g2_num = 1000
-        g2_display_interv = 250
-
-    return locals()
-
-
-def model1_parameter_sensitivity(test=False):
-    model_name = "model1_parameter_sensitivity"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    data_loader_func = data_loader_rabinowitz
-    data_collection_func = mid_data_loader_model1234
-    # model_mid_data_dict = data_loader_rabinowitz(mid_data_loader_model1234, data_collection_kwargs)
-
-    hook_in_each_iteration = result_processing_each_iteration_model12
-    hook_after_all_iterations = final_processing_parameter_sensitivity_model1
-    model_construction_func = model1_construction
-    parameter_construction_func = parameter_sensitivity_model1
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
-                         ['Fcirc_glc', 'Fcirc_lac']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-
-    min_flux_value = 1
-    max_flux_value = 1000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.2
-    deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.1, 0.9]}
-    sigma_dict = {'mid': 0.5, 'flux': 0.5}
-    f1_range = [1, 150]
-    g2_range = [1, 150]
-    if test:
-        f1_num = 21
-        f1_display_interv = 20
-        g2_num = 21
-        g2_display_interv = 20
-        parameter_sampling_num = 10
-    else:
-        f1_num = 100
-        f1_display_interv = 20
-        g2_num = 100
-        g2_display_interv = 20
-        parameter_sampling_num = 100
-
-    return locals()
-
-
-def model1_m5_parameters(test=False):
-    model_name = "model1_m5"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M5'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_parameter_dict
-
-
-def model1_m9_parameters(test=False):
-    model_name = "model1_m9"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M9'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_parameter_dict
-
-
-def model1_lactate_parameters(test=False):
-    model_name = "model1_lactate"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["lactate"], 'mouse_id_list': ['M3'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_parameter_dict
-
-
-def model1_lactate_m4_parameters(test=False):
-    model_name = "model1_lactate_m4"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["lactate"], 'mouse_id_list': ['M4'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_parameter_dict
-
-
-def model1_lactate_m10_parameters(test=False):
-    model_name = "model1_lactate_m10"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["lactate"], 'mouse_id_list': ['M10'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_parameter_dict
-
-
-def model1_lactate_m11_parameters(test=False):
-    model_name = "model1_lactate_m11"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["lactate"], 'mouse_id_list': ['M11'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.heart_marker}
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_parameter_dict
-
-
-def model1_all_tissue_m5(test=False):
-    model_name = "model1_all_tissue_m5"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_dict = model1_all_tissue(test)
-    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M5']})
-    model1_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_all_tissue_dict
-
-
-def model1_all_tissue_m9(test=False):
-    model_name = "model1_all_tissue_m9"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_dict = model1_all_tissue(test)
-    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M9']})
-    model1_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_all_tissue_dict
-
-
-def model1_all_tissue_lactate(test=False):
-    model_name = "model1_all_tissue_lactate"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_dict = model1_all_tissue(test)
-    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M3']})
-    model1_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_all_tissue_dict
-
-
-def model1_all_tissue_lactate_m4(test=False):
-    model_name = "model1_all_tissue_lactate_m4"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_dict = model1_all_tissue(test)
-    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M4']})
-    model1_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_all_tissue_dict
-
-
-def model1_all_tissue_lactate_m10(test=False):
-    model_name = "model1_all_tissue_lactate_m10"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_dict = model1_all_tissue(test)
-    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M10']})
-    model1_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_all_tissue_dict
-
-
-def model1_all_tissue_lactate_m11(test=False):
-    model_name = "model1_all_tissue_lactate_m11"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_dict = model1_all_tissue(test)
-    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M11']})
-    model1_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model1_all_tissue_dict
-
-
-def model3_all_tissue(test=False):
-    model_name = "model3_all_tissue"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker,
-        'sink_tissue_marker_list': [
-            constant_set.heart_marker, constant_set.brain_marker, constant_set.muscle_marker,
-            constant_set.kidney_marker, constant_set.lung_marker, constant_set.pancreas_marker,
-            constant_set.intestine_marker, constant_set.spleen_marker]}
-    data_loader_func = data_loader_rabinowitz
-    data_collection_func = mid_data_loader_all_tissue
-
-    hook_in_each_iteration = result_processing_each_iteration_model34
-    hook_after_all_iterations = final_processing_all_tissue_model34
-    model_construction_func = model3_construction
-    parameter_construction_func = all_tissue_model3
-
-    complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
-                         ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
-    complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'Fcirc_pyr': 57.3, 'F12': 200}
-
-    min_flux_value = 1
-    max_flux_value = 1000
-    optimization_repeat_time = 10
-    obj_tolerance = 0.15
-    ternary_sigma = 0.15
-
-    free_fluxes_name_list = ['F1', 'G2', 'F9', 'G10', 'F3']
-    free_fluxes_range_list = [
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_glc']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_pyr']],
-        [min_flux_value, constant_flux_dict['Fcirc_lac']],
-    ]
-
-    if test:
-        total_point_num = int(1e2)
-        ternary_resolution = int(2 ** 7)
-    else:
-        total_point_num = int(1e6)
-        ternary_resolution = int(2 ** 8)
-
-    return locals()
-
-
-def model3_all_tissue_m5(test=False):
-    model_name = "model3_all_tissue_m5"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_all_tissue_dict = model3_all_tissue(test)
-    data_collection_kwargs = model3_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M5']})
-    model3_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model3_all_tissue_dict
-
-
-def model3_all_tissue_m9(test=False):
-    model_name = "model3_all_tissue_m9"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_all_tissue_dict = model3_all_tissue(test)
-    data_collection_kwargs = model3_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M9']})
-    model3_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model3_all_tissue_dict
-
-
-def model3_all_tissue_lactate(test=False):
-    model_name = "model3_all_tissue_lactate"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_all_tissue_dict = model3_all_tissue(test)
-    data_collection_kwargs = model3_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M3']})
-    model3_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model3_all_tissue_dict
-
-
-def model3_all_tissue_lactate_m4(test=False):
-    model_name = "model3_all_tissue_lactate_m4"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_all_tissue_dict = model3_all_tissue(test)
-    data_collection_kwargs = model3_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M4']})
-    model3_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model3_all_tissue_dict
-
-
-def model3_all_tissue_lactate_m10(test=False):
-    model_name = "model3_all_tissue_lactate_m10"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_all_tissue_dict = model3_all_tissue(test)
-    data_collection_kwargs = model3_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M10']})
-    model3_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model3_all_tissue_dict
-
-
-def model3_all_tissue_lactate_m11(test=False):
-    model_name = "model3_all_tissue_lactate_m11"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_all_tissue_dict = model3_all_tissue(test)
-    data_collection_kwargs = model3_all_tissue_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'label_list': ["lactate"], 'mouse_id_list': ['M11']})
-    model3_all_tissue_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model3_all_tissue_dict
-
-
-def model6_m2_parameters(test=False):
-    model_name = "model6_m2"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M2'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs,
-        'obj_tolerance': 0.4
-    })
-
-    return model6_parameter_dict
-
-
-def model6_m3_parameters(test=False):
-    model_name = "model6_m3"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M3'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs,
-        'obj_tolerance': 0.4
-    })
-
-    return model6_parameter_dict
-
-
-def model6_m4_parameters(test=False):
-    model_name = "model6_m4"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    data_collection_kwargs = {
-        'label_list': ["glucose"], 'mouse_id_list': ['M4'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink_tissue_marker': constant_set.muscle_marker}
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs,
-        'obj_tolerance': 0.25
-    })
-
-    return model6_parameter_dict
-
-
-def model7_m2_parameters(test=False):
-    model_name = "model7_m2"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model7_dict = model7_parameters(test)
-    data_collection_kwargs = model7_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M2']})
-    model7_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model7_dict
-
-
-def model7_m3_parameters(test=False):
-    model_name = "model7_m3"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model7_dict = model7_parameters(test)
-    data_collection_kwargs = model7_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M3']})
-    model7_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model7_dict
-
-
-def model7_m4_parameters(test=False):
-    model_name = "model7_m4"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model7_dict = model7_parameters(test)
-    data_collection_kwargs = model7_dict['data_collection_kwargs']
-    data_collection_kwargs.update({
-        'mouse_id_list': ['M4']})
-    model7_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'data_collection_kwargs': data_collection_kwargs
-    })
-    return model7_dict
-
-
-def model1_unfitted_parameters(test=False):
-    model_name = "model1_unfitted"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_parameter_dict = model1_parameters(test)
-    model1_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'fitted': False,
-        'obj_tolerance': 999999
-    })
-
-    return model1_parameter_dict
-
-
-def model3_unfitted_parameters(test=False):
-    model_name = "model3_unfitted"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model3_parameter_dict = model3_parameters(test)
-    model3_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'fitted': False,
-        'obj_tolerance': 999999
-    })
-
-    return model3_parameter_dict
-
-
-def model5_unfitted_parameters(test=False):
-    model_name = "model5_unfitted"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model5_parameter_dict = model5_parameters(test)
-    model5_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'fitted': False,
-        'obj_tolerance': 999999
-    })
-
-    return model5_parameter_dict
-
-
-def model6_unfitted_parameters(test=False):
-    model_name = "model6_unfitted"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'fitted': False,
-        'obj_tolerance': 999999
-    })
-
-    return model6_parameter_dict
-
-
-def model7_unfitted_parameters(test=False):
-    model_name = "model7_unfitted"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model7_parameter_dict = model7_parameters(test)
-    model7_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'fitted': False,
-        'obj_tolerance': 999999
-    })
-
-    return model7_parameter_dict
-
-
-def model1_split_contribution(test=False):
-    model_name = "model1_split_contribution"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model1_all_tissue_parameter_dict = model1_all_tissue(test)
-    model1_all_tissue_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'split': True,
-        'hook_in_each_iteration': result_processing_each_iteration_model12_split
-    })
-
-    return model1_all_tissue_parameter_dict
-
-
-def model6_split_contribution(test=False):
-    model_name = "model6_split_contribution"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    model6_parameter_dict = model6_parameters(test)
-    model6_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'split': True,
-        'hook_in_each_iteration': result_processing_each_iteration_model12_split
-    })
-
-    return model6_parameter_dict
-
-
-def model1_hypoxia_correction(test=False):
-    model_name = "model1_hypoxia_correction"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    # Positive means increasing labeling ratio. Negative means decreasing labeling ratio
-    # Correction of hypoxia should increase glucose in source, increase lactate in sink and decrease pyruvate in sink.
-    hypoxia_correction_parameter_dict = {
-        'glc_source': 0.2,
-        'lac_sink': 0.2,
-        'pyr_sink': -0.2,
-    }
-    model1_all_tissue_parameter_dict = model1_all_tissue(test)
-    model1_all_tissue_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'parameter_construction_func': all_tissue_hypoxia_correction,
-        'hypoxia_correction_parameter_dict': hypoxia_correction_parameter_dict
-    })
-    return model1_all_tissue_parameter_dict

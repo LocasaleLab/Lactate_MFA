@@ -16,7 +16,7 @@ import tqdm
 from scipy.special import comb as scipy_comb
 from ternary.helpers import simplex_iterator
 
-from src import model_specific_functions, config
+from src import model_parameter_functions, config
 
 constant_set = config.Constants()
 color_set = config.Color()
@@ -170,18 +170,23 @@ def eq_func_jacob_constructor(complete_balance_matrix, complete_balance_vector):
 
 
 def start_point_generator(
-        complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value, maximal_failed_time=5):
+        complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value, maximal_failed_time=10):
     a_eq = complete_balance_matrix
     b_eq = -complete_balance_vector
-    lp_lb = min_flux_value
-    lp_ub = max_flux_value
+    raw_lp_lb = min_flux_value
+    raw_lp_ub = max_flux_value
     result = None
     failed_time = 0
+    num_variable = a_eq.shape[1]
     while failed_time < maximal_failed_time:
-        random_obj = np.random.random(a_eq.shape[1]) - 0.4
+        random_obj = np.random.random(num_variable) - 0.4
+        lp_lb = raw_lp_lb + np.random.random(num_variable) * 4 + 1
+        lp_ub = raw_lp_ub * (np.random.random(num_variable) * 0.2 + 0.8)
+        # bounds = list(zip(lp_lb, lp_ub))
+        bounds = np.vstack([lp_lb, lp_ub]).T
         try:
             res = scipy.optimize.linprog(
-                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=(lp_lb, lp_ub), method="simplex",
+                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=bounds, method="simplex",
                 options={'tol': 1e-10})  # "disp": True
         except ValueError:
             failed_time += 1
@@ -218,7 +223,7 @@ def one_case_solver_slsqp(
     # gradient_validation(cross_entropy_objective_func, cross_entropy_jacobi, start_vector)
     if start_vector is None:
         result_dict = {}
-        obj_value = -1
+        obj_value = 999999
         success = False
     else:
         if not fitted:
@@ -234,6 +239,8 @@ def one_case_solver_slsqp(
             for _ in range(optimization_repeat_time):
                 start_vector = start_point_generator(
                     complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
+                if start_vector is None:
+                    continue
                 current_result = scipy.optimize.minimize(
                     cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi_func,
                     constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bounds)  # 'disp': True,
@@ -260,7 +267,8 @@ def calculate_one_tissue_tca_contribution(input_net_flux_list):
         if net_flux > 0:
             current_real_flux = net_flux - net_flux / total_input_flux * total_output_flux
         real_flux_list.append(current_real_flux)
-    return real_flux_list
+    real_flux_array = np.array(real_flux_list)
+    return real_flux_array
 
 
 def one_time_prediction(predicted_vector_dim, mid_constraint_dict, flux_value_dict):
@@ -337,7 +345,8 @@ def plot_raw_mid_bar(data_dict, color_dict=None, error_bar_dict=None, title=None
 
 
 # data_matrix: show the location of heatmap
-def plot_heat_map(data_matrix, x_free_variable, y_free_variable, cmap=None, cbar_name=None, save_path=None):
+def plot_heat_map(
+        data_matrix, x_free_variable, y_free_variable, cmap=None, cbar_name=None, title=None, save_path=None):
     fig, ax = plt.subplots()
     im = ax.imshow(data_matrix, cmap=cmap)
     ax.set_xlim([0, x_free_variable.total_num])
@@ -346,6 +355,8 @@ def plot_heat_map(data_matrix, x_free_variable, y_free_variable, cmap=None, cbar
     ax.set_yticks(y_free_variable.tick_in_range)
     ax.set_xticklabels(x_free_variable.tick_labels)
     ax.set_yticklabels(y_free_variable.tick_labels)
+    if title:
+        ax.set_title(title)
     if cbar_name:
         cbar = ax.figure.colorbar(im, ax=ax)
         cbar.ax.set_ylabel(cbar_name, rotation=-90, va="bottom")
@@ -354,7 +365,7 @@ def plot_heat_map(data_matrix, x_free_variable, y_free_variable, cmap=None, cbar
         fig.savefig(save_path, dpi=fig.dpi)
 
 
-def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, save_path=None):
+def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, title=None, save_path=None):
     fig, ax = plt.subplots()
     data_list_for_violin = data_dict.values()
     tissue_label_list = data_dict.keys()
@@ -362,11 +373,14 @@ def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, save_path=N
 
     parts = ax.violinplot(data_list_for_violin, showmedians=True, showextrema=True)
     if color_dict is not None:
+        if isinstance(color_dict, np.ndarray):
+            new_color_dict = {key: color_dict for key in data_dict}
+            color_dict = new_color_dict
         color_list = [color_dict[key] for key in tissue_label_list]
         parts['cmaxes'].set_edgecolor(color_list)
         parts['cmins'].set_edgecolor(color_list)
         parts['cbars'].set_edgecolor(color_list)
-        parts['cmedians'].set_edgecolor(color_list)
+        parts['cmedians'].set_edgecolor(color_set.orange)
         for pc, color in zip(parts['bodies'], color_list):
             pc.set_facecolor(color)
             pc.set_alpha(color_set.alpha_value)
@@ -375,12 +389,14 @@ def plot_violin_distribution(data_dict, color_dict=None, cutoff=0.5, save_path=N
     ax.set_ylim([-0.1, 1.1])
     ax.set_xticks(x_axis_position)
     ax.set_xticklabels(tissue_label_list)
+    if title:
+        ax.set_title(title)
     if save_path:
         # print(save_path)
         fig.savefig(save_path, dpi=fig.dpi)
 
 
-def plot_box_distribution(data_dict, save_path=None, broken_yaxis=None):
+def plot_box_distribution(data_dict, save_path=None, title=None, broken_yaxis=None):
     def color_edges(box_parts):
         for part_name, part_list in box_parts.items():
             if part_name == 'medians':
@@ -400,6 +416,8 @@ def plot_box_distribution(data_dict, save_path=None, broken_yaxis=None):
         color_edges(parts)
         ax.set_xticks(x_axis_position)
         ax.set_xticklabels(tissue_label_list)
+        if title:
+            ax.set_title(title)
     else:
         fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         parts1 = ax1.boxplot(data_list_for_box, whis='range')
@@ -416,6 +434,7 @@ def plot_box_distribution(data_dict, save_path=None, broken_yaxis=None):
 
     if save_path:
         fig.savefig(save_path, dpi=fig.dpi)
+
 
 # Plot a scatter in triangle based on data_matrix
 # data_matrix: N-3 matrix. Each row is a point with 3 coordinate
@@ -438,7 +457,8 @@ def plot_ternary_scatter(data_matrix):
 # In cartesian cor, the left bottom corner of triangle is the origin.
 # The scale of all triangle points is 1.
 # Order of ternary cor: x1: bottom (to right) x2: right (to left) x3: left (to bottom)
-def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8, mean=False, save_path=None):
+def plot_ternary_density(
+        tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 8, mean=False, title=None, save_path=None):
     sqrt_3 = np.sqrt(3)
 
     def standard_2dnormal(x, y, _sigma):
@@ -496,6 +516,7 @@ def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 
     tick_labels = list(np.linspace(0, bin_num, 6) / bin_num)
     tax.ticks(axis='lbr', ticks=tick_labels, linewidth=1, tick_formats="")
     tax.clear_matplotlib_ticks()
+    tax.set_title(title)
     plt.tight_layout()
     if mean:
         mean_value = tri_data_matrix.mean(axis=0).reshape([1, -1]) * bin_num
@@ -508,10 +529,10 @@ def plot_ternary_density(tri_data_matrix, sigma: float = 1, bin_num: int = 2 ** 
 
 def parallel_solver_single(
         var_parameter_dict, const_parameter_dict, one_case_solver_func, hook_in_each_iteration):
-    # var_parameter_dict, q = complete_parameter_tuple
-    # result = one_case_solver_slsqp(**const_parameter_dict, **var_parameter_dict)
     result = one_case_solver_func(**const_parameter_dict, **var_parameter_dict)
-    hook_result = hook_in_each_iteration(result, **const_parameter_dict, **var_parameter_dict)
+    # hook_result = hook_in_each_iteration(result, **const_parameter_dict, **var_parameter_dict)
+    hook_result = result_processing_each_iteration_template(
+        result, contribution_func=hook_in_each_iteration)
     return result, hook_result
 
 
@@ -522,6 +543,7 @@ def parallel_solver(
     # manager = multiprocessing.Manager()
     # q = manager.Queue()
     # result = pool.map_async(task, [(x, q) for x in range(10)])
+    debug = False
 
     if parallel_num is None:
         cpu_count = os.cpu_count()
@@ -546,20 +568,29 @@ def parallel_solver(
         var_parameter_list2 = var_parameter_list
         total_length = len(var_parameter_list)
 
-    with mp.Pool(processes=parallel_num) as pool:
-        raw_result_iter = pool.imap(
-            partial(
-                parallel_solver_single, const_parameter_dict=const_parameter_dict,
-                one_case_solver_func=one_case_solver_func,
-                hook_in_each_iteration=hook_in_each_iteration),
-            var_parameter_list, chunk_size)
-        raw_result_list = list(tqdm.tqdm(
-            raw_result_iter, total=total_length, smoothing=0, maxinterval=5,
-            desc="Computation progress of {}".format(model_name)))
+    if debug:
+        result_list = []
+        hook_result_list = []
+        for var_parameter_dict in var_parameter_list:
+            result, hook_result = parallel_solver_single(
+                var_parameter_dict, const_parameter_dict, one_case_solver_func, hook_in_each_iteration)
+            result_list.append(result)
+            hook_result_list.append(hook_result)
+    else:
+        with mp.Pool(processes=parallel_num) as pool:
+            raw_result_iter = pool.imap(
+                partial(
+                    parallel_solver_single, const_parameter_dict=const_parameter_dict,
+                    one_case_solver_func=one_case_solver_func,
+                    hook_in_each_iteration=hook_in_each_iteration),
+                var_parameter_list, chunk_size)
+            raw_result_list = list(tqdm.tqdm(
+                raw_result_iter, total=total_length, smoothing=0, maxinterval=5,
+                desc="Computation progress of {}".format(model_name)))
 
-    result_iter, hook_result_iter = zip(*raw_result_list)
-    result_list = list(result_iter)
-    hook_result_list = list(hook_result_iter)
+        result_iter, hook_result_iter = zip(*raw_result_list)
+        result_list = list(result_iter)
+        hook_result_list = list(hook_result_iter)
     if not os.path.isdir(constant_set.output_direct):
         os.mkdir(constant_set.output_direct)
     hook_after_all_iterations(result_list, hook_result_list, const_parameter_dict, var_parameter_list2)
@@ -626,48 +657,59 @@ def fitting_result_display(
     plt.show()
 
 
+def result_processing_each_iteration_template(result: config.Result, contribution_func):
+    processed_dict = {}
+    if result.success:
+        processed_dict['obj_diff'] = result.obj_value - result.minimal_obj_value
+        processed_dict['valid'], processed_dict['contribution_dict'] = contribution_func(
+            result.result_dict)
+    else:
+        processed_dict['obj_diff'] = np.nan
+        processed_dict['valid'], processed_dict['contribution_dict'] = contribution_func(
+            result.result_dict, empty=True)
+    return processed_dict
+
+
 def parser_main():
     parameter_dict = {
-        'model1': model_specific_functions.model1_parameters,
-        'model1_m5': model_specific_functions.model1_m5_parameters,
-        'model1_m9': model_specific_functions.model1_m9_parameters,
-        'model1_lactate': model_specific_functions.model1_lactate_parameters,
-        'model1_lactate_m4': model_specific_functions.model1_lactate_m4_parameters,
-        'model1_lactate_m10': model_specific_functions.model1_lactate_m10_parameters,
-        'model1_lactate_m11': model_specific_functions.model1_lactate_m11_parameters,
-        'model1_all': model_specific_functions.model1_all_tissue,
-        'model1_all_m5': model_specific_functions.model1_all_tissue_m5,
-        'model1_all_m9': model_specific_functions.model1_all_tissue_m9,
-        'model1_all_lactate': model_specific_functions.model1_all_tissue_lactate,
-        'model1_all_lactate_m4': model_specific_functions.model1_all_tissue_lactate_m4,
-        'model1_all_lactate_m10': model_specific_functions.model1_all_tissue_lactate_m10,
-        'model1_all_lactate_m11': model_specific_functions.model1_all_tissue_lactate_m11,
-        'model1_all_split': model_specific_functions.model1_split_contribution,
-        'model1_hypoxia': model_specific_functions.model1_hypoxia_correction,
-        'model1_unfitted': model_specific_functions.model1_unfitted_parameters,
-        'parameter': model_specific_functions.model1_parameter_sensitivity,
-        'model3': model_specific_functions.model3_parameters,
-        'model3_all': model_specific_functions.model3_all_tissue,
-        'model3_all_m5': model_specific_functions.model3_all_tissue_m5,
-        'model3_all_m9': model_specific_functions.model3_all_tissue_m9,
-        'model3_all_lactate': model_specific_functions.model3_all_tissue_lactate,
-        'model3_all_lactate_m4': model_specific_functions.model3_all_tissue_lactate_m4,
-        'model3_all_lactate_m10': model_specific_functions.model3_all_tissue_lactate_m10,
-        'model3_all_lactate_m11': model_specific_functions.model3_all_tissue_lactate_m11,
-        'model3_unfitted': model_specific_functions.model3_unfitted_parameters,
-        'model5': model_specific_functions.model5_parameters,
-        'model5_unfitted': model_specific_functions.model5_unfitted_parameters,
-        'model6': model_specific_functions.model6_parameters,
-        'model6_m2': model_specific_functions.model6_m2_parameters,
-        'model6_m3': model_specific_functions.model6_m3_parameters,
-        'model6_m4': model_specific_functions.model6_m4_parameters,
-        'model6_split': model_specific_functions.model6_split_contribution,
-        'model6_unfitted': model_specific_functions.model6_unfitted_parameters,
-        'model7': model_specific_functions.model7_parameters,
-        'model7_m2': model_specific_functions.model7_m2_parameters,
-        'model7_m3': model_specific_functions.model7_m3_parameters,
-        'model7_m4': model_specific_functions.model7_m3_parameters,
-        'model7_unfitted': model_specific_functions.model7_unfitted_parameters}
+        'model1': model_parameter_functions.model1_parameters,
+        'model1_m5': model_parameter_functions.model1_m5_parameters,
+        'model1_m9': model_parameter_functions.model1_m9_parameters,
+        'model1_lactate': model_parameter_functions.model1_lactate_parameters,
+        'model1_lactate_m4': model_parameter_functions.model1_lactate_m4_parameters,
+        'model1_lactate_m10': model_parameter_functions.model1_lactate_m10_parameters,
+        'model1_lactate_m11': model_parameter_functions.model1_lactate_m11_parameters,
+        'model1_all': model_parameter_functions.model1_all_tissue,
+        'model1_all_m5': model_parameter_functions.model1_all_tissue_m5,
+        'model1_all_m9': model_parameter_functions.model1_all_tissue_m9,
+        'model1_all_lactate': model_parameter_functions.model1_all_tissue_lactate,
+        'model1_all_lactate_m4': model_parameter_functions.model1_all_tissue_lactate_m4,
+        'model1_all_lactate_m10': model_parameter_functions.model1_all_tissue_lactate_m10,
+        'model1_all_lactate_m11': model_parameter_functions.model1_all_tissue_lactate_m11,
+        'model1_all_hypoxia': model_parameter_functions.model1_hypoxia_correction,
+        'model1_unfitted': model_parameter_functions.model1_unfitted_parameters,
+        'parameter': model_parameter_functions.model1_parameter_sensitivity,
+        'model3': model_parameter_functions.model3_parameters,
+        'model3_all': model_parameter_functions.model3_all_tissue,
+        'model3_all_m5': model_parameter_functions.model3_all_tissue_m5,
+        'model3_all_m9': model_parameter_functions.model3_all_tissue_m9,
+        'model3_all_lactate': model_parameter_functions.model3_all_tissue_lactate,
+        'model3_all_lactate_m4': model_parameter_functions.model3_all_tissue_lactate_m4,
+        'model3_all_lactate_m10': model_parameter_functions.model3_all_tissue_lactate_m10,
+        'model3_all_lactate_m11': model_parameter_functions.model3_all_tissue_lactate_m11,
+        'model3_unfitted': model_parameter_functions.model3_unfitted_parameters,
+        'model5': model_parameter_functions.model5_parameters,
+        'model5_unfitted': model_parameter_functions.model5_unfitted_parameters,
+        'model6': model_parameter_functions.model6_parameters,
+        'model6_m2': model_parameter_functions.model6_m2_parameters,
+        'model6_m3': model_parameter_functions.model6_m3_parameters,
+        'model6_m4': model_parameter_functions.model6_m4_parameters,
+        'model6_unfitted': model_parameter_functions.model6_unfitted_parameters,
+        'model7': model_parameter_functions.model7_parameters,
+        'model7_m2': model_parameter_functions.model7_m2_parameters,
+        'model7_m3': model_parameter_functions.model7_m3_parameters,
+        'model7_m4': model_parameter_functions.model7_m3_parameters,
+        'model7_unfitted': model_parameter_functions.model7_unfitted_parameters}
     parser = argparse.ArgumentParser(description='MFA for multi-tissue model by Shiyu Liu.')
     parser.add_argument(
         'model_name', choices=parameter_dict.keys(), help='The name of model you want to compute.')
