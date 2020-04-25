@@ -42,6 +42,22 @@ def empty_vector(n):
     return a
 
 
+def bound_pair_generator(min_flux_value, max_flux_value, flux_list, special_bound_dict=None):
+    if special_bound_dict is None:
+        bound_pair_list = ([min_flux_value] * len(flux_list), [max_flux_value] * len(flux_list))
+    else:
+        bound_pair_list = ([], [])
+        for flux_name in flux_list:
+            if flux_name in special_bound_dict:
+                special_min, special_max = special_bound_dict[flux_name]
+                bound_pair_list[0].append(special_min)
+                bound_pair_list[1].append(special_max)
+            else:
+                bound_pair_list[0].append(min_flux_value)
+                bound_pair_list[1].append(max_flux_value)
+    return bound_pair_list
+
+
 class Color(object):
     white = np.array([1, 1, 1])
     blue = np.array([21, 113, 177]) / 255

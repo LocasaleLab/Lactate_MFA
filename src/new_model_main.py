@@ -170,23 +170,21 @@ def eq_func_jacob_constructor(complete_balance_matrix, complete_balance_vector):
 
 
 def start_point_generator(
-        complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value, maximal_failed_time=10):
+        complete_balance_matrix, complete_balance_vector, bounds, maximal_failed_time=10):
     a_eq = complete_balance_matrix
     b_eq = -complete_balance_vector
-    raw_lp_lb = min_flux_value
-    raw_lp_ub = max_flux_value
+    raw_lb, raw_ub = bounds
     result = None
     failed_time = 0
     num_variable = a_eq.shape[1]
     while failed_time < maximal_failed_time:
         random_obj = np.random.random(num_variable) - 0.4
-        lp_lb = raw_lp_lb + np.random.random(num_variable) * 4 + 1
-        lp_ub = raw_lp_ub * (np.random.random(num_variable) * 0.2 + 0.8)
-        # bounds = list(zip(lp_lb, lp_ub))
-        bounds = np.vstack([lp_lb, lp_ub]).T
+        lp_lb = raw_lb + np.random.random(num_variable) * 4 + 1
+        lp_ub = raw_ub * (np.random.random(num_variable) * 0.2 + 0.8)
+        bounds_matrix = np.vstack([lp_lb, lp_ub]).T
         try:
             res = scipy.optimize.linprog(
-                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=bounds, method="simplex",
+                random_obj, A_eq=a_eq, b_eq=b_eq, bounds=bounds_matrix, method="simplex",
                 options={'tol': 1e-10})  # "disp": True
         except ValueError:
             failed_time += 1
@@ -201,7 +199,7 @@ def start_point_generator(
 
 def one_case_solver_slsqp(
         flux_balance_matrix, flux_balance_constant_vector, substrate_mid_matrix, flux_sum_matrix, target_mid_vector,
-        optimal_obj_value, complete_flux_dict, constant_flux_dict, min_flux_value, max_flux_value,
+        optimal_obj_value, complete_flux_dict, constant_flux_dict, bounds,
         optimization_repeat_time, label=None, fitted=True, **other_parameters):
     constant_flux_matrix, constant_constant_vector = constant_flux_constraint_constructor(
         constant_flux_dict, complete_flux_dict)
@@ -217,9 +215,9 @@ def one_case_solver_slsqp(
     eq_func_jacob = eq_func_jacob_constructor(complete_balance_matrix, complete_balance_vector)
 
     eq_cons = {'type': 'eq', 'fun': eq_func, 'jac': eq_func_jacob}
-    bounds = scipy.optimize.Bounds(min_flux_value, max_flux_value)
+    bound_object = scipy.optimize.Bounds(*bounds)
     start_vector = start_point_generator(
-        complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
+        complete_balance_matrix, complete_balance_vector, bounds)
     # gradient_validation(cross_entropy_objective_func, cross_entropy_jacobi, start_vector)
     if start_vector is None:
         result_dict = {}
@@ -238,12 +236,12 @@ def one_case_solver_slsqp(
             obj_value = 999999
             for _ in range(optimization_repeat_time):
                 start_vector = start_point_generator(
-                    complete_balance_matrix, complete_balance_vector, min_flux_value, max_flux_value)
+                    complete_balance_matrix, complete_balance_vector, bounds)
                 if start_vector is None:
                     continue
                 current_result = scipy.optimize.minimize(
                     cross_entropy_objective_func, start_vector, method='SLSQP', jac=cross_entropy_jacobi_func,
-                    constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bounds)  # 'disp': True,
+                    constraints=[eq_cons], options={'ftol': 1e-9, 'maxiter': 500}, bounds=bound_object)  # 'disp': True,
                 if current_result.success and current_result.fun < obj_value:
                     result_dict = {
                         flux_name: flux_value for flux_name, flux_value

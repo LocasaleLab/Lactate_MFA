@@ -34,7 +34,7 @@ final_processing_parameter_sensitivity_model1 = model_specific_functions.final_p
 
 # Preparation functions
 dynamic_range_model12 = model_specific_functions.dynamic_range_model12
-dynamic_range_model34 = model_specific_functions.dynamic_range_model34
+dynamic_range_model345 = model_specific_functions.dynamic_range_model345
 all_tissue_model1 = model_specific_functions.all_tissue_model1
 all_tissue_model3 = model_specific_functions.all_tissue_model3
 all_tissue_hypoxia_correction = model_specific_functions.all_tissue_hypoxia_correction
@@ -76,10 +76,11 @@ def model1_parameters(test=False):
         g2_num = 31
         g2_display_interv = 30
     else:
-        f1_num = 1000
+        f1_num = 1200
         f1_display_interv = 250
-        g2_num = 1000
+        g2_num = 1200
         g2_display_interv = 250
+    bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list)
     return locals()
 
 
@@ -139,7 +140,7 @@ def model3_parameters(test=False):
     hook_in_each_iteration = metabolite_contribution_model34
     hook_after_all_iterations = final_processing_dynamic_range_model345
     model_construction_func = model3_construction
-    parameter_construction_func = dynamic_range_model34
+    parameter_construction_func = dynamic_range_model345
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
                          ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_glc', 'Fcirc_lac', 'Fcirc_pyr']
@@ -167,9 +168,9 @@ def model3_parameters(test=False):
         total_point_num = int(1e3)
         ternary_resolution = int(2 ** 7)
     else:
-        total_point_num = int(1e6)
+        total_point_num = int(1.5e6)
         ternary_resolution = int(2 ** 8)
-
+    bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list)
     return locals()
 
 
@@ -187,7 +188,7 @@ def model3_parameters(test=False):
 #     hook_in_each_iteration = metabolite_contribution_model34
 #     hook_after_all_iterations = final_processing_dynamic_range_model345
 #     model_construction_func = model4_construction
-#     parameter_construction_func = dynamic_range_model34
+#     parameter_construction_func = dynamic_range_model345
 #
 #     complete_flux_list = ['F{}'.format(i + 1) for i in range(11)] + ['G{}'.format(i + 1) for i in range(11)] + \
 #                          ['H{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Jin']
@@ -241,20 +242,26 @@ def model5_parameters(test=False):
     # hook_after_all_iterations = final_processing_dynamic_range_model5
     hook_after_all_iterations = final_processing_dynamic_range_model345
     model_construction_func = model5_construction
-    parameter_construction_func = dynamic_range_model34
+    parameter_construction_func = dynamic_range_model345
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
                          ['H{}'.format(i + 1) for i in range(9)] + ['Fcirc_lac', 'Fcirc_glc']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
     # constant_flux_dict = {'F10': 100, 'Fcirc_lac': 374.4, 'Fcirc_glc': 150.9}
-    constant_flux_dict = {'F10': 50, 'Fcirc_lac': 374.4, 'Fcirc_glc': 150.9}
+    constant_flux_dict = {'F10': 40, 'Fcirc_lac': 374.4, 'Fcirc_glc': 150.9}
 
     min_flux_value = 1
     # max_flux_value = 1000
-    max_flux_value = 800
+    max_flux_value = 700
     optimization_repeat_time = 10
     obj_tolerance = 0.15
     ternary_sigma = 0.15
+    special_bound_dict = {}
+    # special_bound_dict = {
+    #     'F9': (10, 30),
+    #     'G9': (10, 30),
+    #     'H9': (10, 30)
+    # }
 
     free_fluxes_name_list = ['F1', 'G2', 'H1', 'F3', 'G4']
     free_fluxes_range_list = [
@@ -274,6 +281,7 @@ def model5_parameters(test=False):
         # point_interval_list = [25, 25, 5, 5, 25]
         ternary_resolution = int(2 ** 8)
 
+    bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list, special_bound_dict)
     return locals()
 
 
@@ -295,10 +303,10 @@ def model6_parameters(test=False):
     complete_flux_list = ['F{}'.format(i + 1) for i in range(10)] + ['G{}'.format(i + 1) for i in range(9)] + \
                          ['Jin', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
-    constant_flux_dict = {'Jin': 111.1, 'F10': 100, 'Fcirc_lac': 400}
+    constant_flux_dict = {'Jin': 111.1, 'F10': 80, 'Fcirc_lac': 400}
 
     min_flux_value = 1
-    max_flux_value = 2000  # 8000
+    max_flux_value = 1000  # 8000
     max_free_flux_value = 300
     optimization_repeat_time = 10
     obj_tolerance = 0.25
@@ -315,7 +323,7 @@ def model6_parameters(test=False):
         f1_display_interv = 250
         g2_num = 1500
         g2_display_interv = 250
-
+    bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list)
     return locals()
 
 
@@ -333,7 +341,7 @@ def model7_parameters(test=False):
     hook_in_each_iteration = metabolite_contribution_model34
     hook_after_all_iterations = final_processing_dynamic_range_model345
     model_construction_func = model7_construction
-    parameter_construction_func = dynamic_range_model34
+    parameter_construction_func = dynamic_range_model345
 
     complete_flux_list = ['F{}'.format(i + 1) for i in range(12)] + ['G{}'.format(i + 1) for i in range(11)] + \
                          ['J{}'.format(i + 1) for i in range(3)] + ['Fcirc_lac', 'Fcirc_pyr', 'Jin']
@@ -362,7 +370,7 @@ def model7_parameters(test=False):
     else:
         total_point_num = int(3e6)
         ternary_resolution = int(2 ** 8)
-
+    bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list)
     return locals()
 
 
@@ -1064,7 +1072,7 @@ def model7_unfitted_parameters(test=False):
 
 
 def model1_hypoxia_correction(test=False):
-    model_name = "model1_hypoxia_correction"
+    model_name = "model1_all_tissue_hypoxia"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
 
     # Positive means increasing labeling ratio. Negative means decreasing labeling ratio

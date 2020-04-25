@@ -44,7 +44,7 @@ def data_loader_dan(
 
 def dynamic_range_model12(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
+        optimization_repeat_time, bounds, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, model_name, fitted=True,
         **other_parameters):
     def iter_parameter_generator_constructor(
@@ -76,8 +76,7 @@ def dynamic_range_model12(
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'iter_length': total_iter_num,
+        'complete_flux_dict': complete_flux_dict, 'bounds': bounds, 'iter_length': total_iter_num,
         'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
@@ -106,7 +105,7 @@ def iter_parameter_generator_constructor_all_tissue(
 
 def all_tissue_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
+        optimization_repeat_time, bounds, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, model_name, **other_parameters):
     f1_free_flux = config.FreeVariable(
         name='F1', total_num=f1_num, var_range=f1_range, display_interv=f1_display_interv)
@@ -134,8 +133,8 @@ def all_tissue_model1(
         model_parameter_dict_list.append(var_parameter_dict)
 
     const_parameter_dict = {
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+        'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
+        'tissue_name_list': list(model_mid_data_dict.keys()),
         'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
@@ -149,7 +148,7 @@ def all_tissue_model1(
 
 def all_tissue_hypoxia_correction(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
+        optimization_repeat_time, bounds, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
         hypoxia_correction_parameter_dict, model_name, **other_parameters):
     def single_mid_correction(mid_vector, final_correction_ratio):
@@ -197,8 +196,8 @@ def all_tissue_hypoxia_correction(
         model_parameter_dict_list.append(var_parameter_dict)
 
     const_parameter_dict = {
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+        'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
+        'tissue_name_list': list(model_mid_data_dict.keys()),
         'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
@@ -212,7 +211,7 @@ def all_tissue_hypoxia_correction(
 
 def parameter_sensitivity_model1(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, sigma_dict,
+        optimization_repeat_time, bounds, obj_tolerance, sigma_dict,
         parameter_sampling_num, deviation_factor_dict,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv, model_name,
         **other_parameters):
@@ -298,8 +297,8 @@ def parameter_sensitivity_model1(
     sample_type_list = ['mid', *constant_flux_dict.keys()]
 
     const_parameter_dict = {
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'sample_type_list': sample_type_list,
+        'complete_flux_dict': complete_flux_dict, 'sample_type_list': sample_type_list,
+        'bounds': bounds,
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
@@ -334,9 +333,9 @@ def parameter_generator_parallel(
     return iter_parameter_list
 
 
-def dynamic_range_model34(
+def dynamic_range_model345(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance,
+        optimization_repeat_time, bounds, obj_tolerance,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
         model_name, parallel_num, fitted=True, **other_parameters):
     def iter_parameter_generator_constructor(
@@ -386,8 +385,8 @@ def dynamic_range_model34(
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'raw_constant_flux_dict': constant_flux_dict,
+        'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
+        'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
@@ -402,7 +401,7 @@ def dynamic_range_model34(
 
 def all_tissue_model3(
         model_mid_data_dict: dict, model_construction_func, output_direct, constant_flux_dict, complete_flux_dict,
-        optimization_repeat_time, min_flux_value, max_flux_value, obj_tolerance, parallel_num,
+        optimization_repeat_time, bounds, obj_tolerance, parallel_num,
         total_point_num, free_fluxes_name_list, free_fluxes_range_list, ternary_sigma, ternary_resolution,
         model_name, **other_parameters):
     def iter_parameter_generator_constructor(
@@ -445,8 +444,8 @@ def all_tissue_model3(
         model_parameter_dict_list.append(var_parameter_dict)
 
     const_parameter_dict = {
-        'complete_flux_dict': complete_flux_dict, 'min_flux_value': min_flux_value,
-        'max_flux_value': max_flux_value, 'tissue_name_list': list(model_mid_data_dict.keys()),
+        'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
+        'tissue_name_list': list(model_mid_data_dict.keys()),
         'raw_constant_flux_dict': constant_flux_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
@@ -961,9 +960,13 @@ def solve_glucose_contribution_model12_old(result_dict: dict):
 
 
 def metabolite_contribution_model12(result_dict: dict, empty=False):
+    empty_contribution_dict = {'source': empty_2_vector, 'sink': empty_2_vector, 'total': empty_2_vector, }
     if empty:
-        contribution_dict = {'source': empty_2_vector, 'sink': empty_2_vector, 'total': empty_2_vector, }
-        return False, contribution_dict
+        return False, empty_contribution_dict
+    f9 = result_dict['F9']
+    g9 = result_dict['G9']
+    if f9 < 2 or g9 < 2:
+        return False, empty_contribution_dict
 
     f56 = result_dict['F5'] - result_dict['F6']
     f78 = result_dict['F7'] - result_dict['F8']
@@ -1010,9 +1013,13 @@ def metabolite_contribution_model12(result_dict: dict, empty=False):
 
 
 def metabolite_contribution_model34(result_dict: dict, empty=False):
+    empty_contribution_dict = {'source': empty_3_vector, 'sink': empty_3_vector, 'total': empty_3_vector, }
     if empty:
-        contribution_dict = {'source': empty_3_vector, 'sink': empty_3_vector, 'total': empty_3_vector, }
-        return False, contribution_dict
+        return False, empty_contribution_dict
+    f11 = result_dict['F11']
+    g11 = result_dict['G11']
+    if f11 < 2 or g11 < 2:
+        return False, empty_contribution_dict
 
     f56 = result_dict['F5'] - result_dict['F6']
     f78 = result_dict['F7'] - result_dict['F8']
@@ -1123,6 +1130,7 @@ def final_processing_dynamic_range_model12(
     glucose_contri_matrix_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
     well_fit_glucose_contri_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
     feasible_flux_distribution_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+    filtered_obj_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
 
     for solver_result, processed_dict, var_parameter_dict in zip(
             result_list, processed_result_list, var_parameter_list):
@@ -1147,18 +1155,20 @@ def final_processing_dynamic_range_model12(
                 if flux_name not in feasible_flux_distribution_dict:
                     feasible_flux_distribution_dict[flux_name] = []
                 feasible_flux_distribution_dict[flux_name].append(flux_value)
+            filtered_obj_list_dict[tissue_name].append(obj_diff)
+            well_fitted_count_dict[tissue_name] += 1
         for contribution_type, contribution_vector in contribution_dict.items():
             if contribution_type not in glucose_contri_matrix_dict:
                 glucose_contri_matrix_dict[contribution_type] = np.zeros_like(valid_matrix)
                 well_fit_glucose_contri_dict[contribution_type] = []
             glucose_contri_matrix_dict[contribution_type][matrix_loc] = contribution_vector[0]
             if valid and obj_diff < obj_tolerance:
-                well_fitted_count_dict[tissue_name] += 1
                 well_fit_glucose_contri_dict[contribution_type].append(contribution_vector[0])
 
     for tissue_name, well_fitted_count in well_fitted_count_dict.items():
         if well_fitted_count == 0:
             raise ValueError('No point fit the constraint for contribution of carbon sources!: {}'.format(tissue_name))
+        print('Well fitted number in tissue {} is {}'.format(tissue_name, well_fitted_count))
 
     raw_output_data_dict = {}
     output_data_dict = {}
@@ -1179,10 +1189,11 @@ def final_processing_dynamic_range_model12(
             for flux_name, flux_list in feasible_flux_distribution_tissue_dict[tissue_name].items()
             if flux_name not in raw_constant_flux_dict}
 
-        filtered_obj_function_matrix = objective_function_matrix.copy()
-        filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
-        filtered_obj_array = np.reshape(filtered_obj_function_matrix, [-1])
-        filtered_obj_array = filtered_obj_array[~np.isnan(filtered_obj_array)]
+        # filtered_obj_function_matrix = objective_function_matrix.copy()
+        # filtered_obj_function_matrix[objective_function_matrix > obj_tolerance] = np.nan
+        # filtered_obj_array = np.reshape(filtered_obj_function_matrix, [-1])
+        # filtered_obj_array = filtered_obj_array[~np.isnan(filtered_obj_array)]
+        filtered_obj_array = np.array(filtered_obj_list_dict[tissue_name])
 
         raw_output_data_dict[tissue_name] = {
             'result_list': result_list,
@@ -1205,11 +1216,11 @@ def final_processing_dynamic_range_model12(
         #     cbar_name='Objective difference',
         #     title=tissue_name,
         #     save_path="{}/objective_function_{}.png".format(output_direct, tissue_name))
-        common_functions.plot_heat_map(
-            filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
-            cbar_name='Filtered objective difference',
-            title=tissue_name,
-            save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
+        # common_functions.plot_heat_map(
+        #     filtered_obj_function_matrix, g2_free_flux, f1_free_flux, cmap=color_set.blue_orange_cmap,
+        #     cbar_name='Filtered objective difference',
+        #     title=tissue_name,
+        #     save_path="{}/filtered_objective_function_{}.png".format(output_direct, tissue_name))
         common_functions.plot_box_distribution(
             {'normal': filtered_obj_array},
             title=tissue_name,
@@ -1242,7 +1253,7 @@ def final_processing_dynamic_range_model12(
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    plt.show()
+    # plt.show()
 
 
 def final_processing_dynamic_range_model345(
@@ -1295,6 +1306,7 @@ def final_processing_dynamic_range_model345(
             valid_point_list.append(free_fluxes_array)
             if obj_diff < obj_tolerance:
                 result_dict = solver_result.result_dict
+                well_fitted_count_dict[tissue_name] += 1
                 for flux_name, flux_value in result_dict.items():
                     if flux_name not in feasible_flux_distribution_dict:
                         feasible_flux_distribution_dict[flux_name] = []
@@ -1302,7 +1314,6 @@ def final_processing_dynamic_range_model345(
                 for contribution_type, contribution_vector in contribution_dict.items():
                     if contribution_type not in well_fit_contri_list_dict:
                         well_fit_contri_list_dict[contribution_type] = []
-                    well_fitted_count_dict[tissue_name] += 1
                     well_fit_contri_list_dict[contribution_type].append(contribution_vector)
         else:
             invalid_point_list.append(free_fluxes_array)
@@ -1310,6 +1321,7 @@ def final_processing_dynamic_range_model345(
     for tissue_name, well_fitted_count in well_fitted_count_dict.items():
         if well_fitted_count == 0:
             raise ValueError('No point fit the constraint for contribution of carbon sources!: {}'.format(tissue_name))
+        print('Well fitted number in tissue {} is {}'.format(tissue_name, well_fitted_count))
 
     raw_output_data_dict = {}
     output_data_dict = {}
@@ -1475,5 +1487,4 @@ def final_processing_parameter_sensitivity_model1(
     with gzip.open("{}/output_data_dict.gz".format(output_direct), 'wb') as f_out:
         pickle.dump(output_data_dict, f_out)
 
-    plt.show()
-
+    # plt.show()
