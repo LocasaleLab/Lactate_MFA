@@ -76,9 +76,9 @@ def model1_parameters(test=False):
         g2_num = 31
         g2_display_interv = 30
     else:
-        f1_num = 1200
+        f1_num = 1000
         f1_display_interv = 250
-        g2_num = 1200
+        g2_num = 1000
         g2_display_interv = 250
     bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list)
     return locals()
@@ -168,7 +168,7 @@ def model3_parameters(test=False):
         total_point_num = int(1e3)
         ternary_resolution = int(2 ** 7)
     else:
-        total_point_num = int(1.5e6)
+        total_point_num = int(1e6)
         ternary_resolution = int(2 ** 8)
     bounds = config.bound_pair_generator(min_flux_value, max_flux_value, complete_flux_list)
     return locals()
