@@ -1429,20 +1429,22 @@ def final_processing_parameter_sensitivity_model1(
         sample_type = solver_result.label['sample_type']
         sample_index = solver_result.label['sample_index']
         obj_diff = processed_dict['obj_diff']
-        contribution_dict = processed_dict['glucose_contribution']
+        contribution_dict = processed_dict['contribution_dict']
         valid = processed_dict['valid']
         glucose_contri_list_dict = well_fit_glucose_contri_dict[sample_type]
         objective_function_list = objective_function_list_dict[sample_type]
 
+        if valid:
+            if sample_index >= len(objective_function_list):
+                objective_function_list.append([])
+            objective_function_list[sample_index].append(obj_diff)
         for contribution_type, contribution_vector in contribution_dict.items():
             if contribution_type not in glucose_contri_list_dict:
                 glucose_contri_list_dict[contribution_type] = []
             current_glucose_contribution_dict = glucose_contri_list_dict[contribution_type]
             if valid:
-                if sample_index >= len(objective_function_list_dict[sample_type]):
-                    objective_function_list.append([])
+                if sample_index >= len(current_glucose_contribution_dict):
                     current_glucose_contribution_dict.append([])
-                objective_function_list[sample_index].append(obj_diff)
                 if obj_diff < obj_tolerance:
                     current_glucose_contribution_dict[sample_index].append(contribution_vector[0])
 

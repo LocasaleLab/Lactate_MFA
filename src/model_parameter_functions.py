@@ -61,7 +61,7 @@ def model1_parameters(test=False):
                          ['Fcirc_glc', 'Fcirc_lac']
     complete_flux_dict = {var: i for i, var in enumerate(complete_flux_list)}
     # constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 100}
-    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 40}
+    constant_flux_dict = {'Fcirc_glc': 150.9, 'Fcirc_lac': 374.4, 'F10': 35}
 
     min_flux_value = 1
     max_flux_value = 500  # 600
@@ -462,7 +462,7 @@ def model1_parameter_sensitivity(test=False):
         f1_display_interv = 20
         g2_num = 21
         g2_display_interv = 20
-        parameter_sampling_num = 10
+        parameter_sampling_num = 5
     else:
         f1_num = 100
         f1_display_interv = 20
