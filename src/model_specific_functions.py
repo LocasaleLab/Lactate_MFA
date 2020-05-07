@@ -151,14 +151,14 @@ def all_tissue_hypoxia_correction(
         optimization_repeat_time, bounds, obj_tolerance,
         f1_num, f1_range, f1_display_interv, g2_num, g2_range, g2_display_interv,
         hypoxia_correction_parameter_dict, model_name, **other_parameters):
-    def single_mid_correction(mid_vector, final_correction_ratio):
-        correction_ratio = final_correction_ratio / (1 - mid_vector[-1] - mid_vector[-1] * final_correction_ratio)
-        new_mid_vector = mid_vector.copy()
-        new_mid_vector[-1] *= (1 + correction_ratio)
-        new_mid_vector /= np.sum(new_mid_vector)
-        return new_mid_vector
+    def hypoxia_correction_old(mid_data_dict, parameter_dict):
+        def single_mid_correction(mid_vector, final_correction_ratio):
+            correction_ratio = final_correction_ratio / (1 - mid_vector[-1] - mid_vector[-1] * final_correction_ratio)
+            new_mid_vector = mid_vector.copy()
+            new_mid_vector[-1] *= (1 + correction_ratio)
+            new_mid_vector /= np.sum(new_mid_vector)
+            return new_mid_vector
 
-    def hypoxia_correction(mid_data_dict, parameter_dict):
         new_mid_data_dict = dict(mid_data_dict)
         glc_source_ratio = parameter_dict['glc_source']
         new_mid_data_dict['glc_source'] = single_mid_correction(mid_data_dict['glc_source'], glc_source_ratio)
@@ -166,6 +166,30 @@ def all_tissue_hypoxia_correction(
         new_mid_data_dict['lac_sink'] = single_mid_correction(mid_data_dict['lac_sink'], lac_sink_ratio)
         pyruvate_sink_ratio = parameter_dict['pyr_sink']
         new_mid_data_dict['pyr_sink'] = single_mid_correction(mid_data_dict['pyr_sink'], pyruvate_sink_ratio)
+        return new_mid_data_dict
+
+    def hypoxia_correction(mid_data_dict, parameter_dict):
+        def single_mid_correction(mixed_mid_vector, current_input_mid_vector, current_correction_ratio):
+            new_mid_vector = (mixed_mid_vector - current_correction_ratio * current_input_mid_vector) / \
+                             (1 - current_correction_ratio)
+            if np.any(new_mid_vector < 0):
+                new_mid_vector[new_mid_vector < 0] = constant_set.eps_of_mid
+                new_mid_vector /= np.sum(new_mid_vector)
+                # raise ValueError(mixed_mid_vector, current_input_mid_vector)
+            return new_mid_vector
+
+        new_mid_data_dict = dict(mid_data_dict)
+        for target_mid_name, correction_ratio in parameter_dict.items():
+            if target_mid_name == 'glc_source':
+                input_mid_vector = mid_data_dict['glc_natural']
+            elif target_mid_name == 'lac_sink':
+                input_mid_vector = mid_data_dict['pyr_sink']
+            elif target_mid_name == 'pyr_sink':
+                input_mid_vector = mid_data_dict['glc_to_pyr_sink']
+            else:
+                raise ValueError()
+            new_mid_data_dict[target_mid_name] = single_mid_correction(
+                mid_data_dict[target_mid_name], input_mid_vector, correction_ratio)
         return new_mid_data_dict
 
     f1_free_flux = config.FreeVariable(
