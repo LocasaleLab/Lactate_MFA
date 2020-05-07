@@ -723,6 +723,43 @@ def model1_all_tissue_lactate_m11(test=False):
     return model1_all_tissue_dict
 
 
+def model1_hypoxia_correction(test=False):
+    model_name = "model1_all_tissue_hypoxia"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    # Positive means increasing labeling ratio. Negative means decreasing labeling ratio
+    # Correction of hypoxia should increase glucose in source, increase lactate in sink and decrease pyruvate in sink.
+    hypoxia_correction_parameter_dict = {
+        'glc_source': 0.1,
+        'lac_sink': 0.05,
+        'pyr_sink': -0.05,
+    }
+    model1_all_tissue_parameter_dict = model1_all_tissue(test)
+    model1_all_tissue_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'parameter_construction_func': all_tissue_hypoxia_correction,
+        'hypoxia_correction_parameter_dict': hypoxia_correction_parameter_dict
+    })
+    return model1_all_tissue_parameter_dict
+
+
+def model1_hypoxia_correction_m5(test=False):
+    model_name = "model1_all_tissue_lactate_m11"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model1_all_tissue_dict = model1_all_tissue(test)
+    data_collection_kwargs = model1_all_tissue_dict['data_collection_kwargs']
+    data_collection_kwargs.update({
+        'label_list': ["lactate"], 'mouse_id_list': ['M11']})
+    model1_all_tissue_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model1_all_tissue_dict
+
+
 def model3_all_tissue(test=False):
     model_name = "model3_all_tissue"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
@@ -1071,22 +1108,3 @@ def model7_unfitted_parameters(test=False):
     return model7_parameter_dict
 
 
-def model1_hypoxia_correction(test=False):
-    model_name = "model1_all_tissue_hypoxia"
-    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
-
-    # Positive means increasing labeling ratio. Negative means decreasing labeling ratio
-    # Correction of hypoxia should increase glucose in source, increase lactate in sink and decrease pyruvate in sink.
-    hypoxia_correction_parameter_dict = {
-        'glc_source': 0.2,
-        'lac_sink': 0.2,
-        'pyr_sink': -0.2,
-    }
-    model1_all_tissue_parameter_dict = model1_all_tissue(test)
-    model1_all_tissue_parameter_dict.update({
-        'model_name': model_name,
-        'output_direct': output_direct,
-        'parameter_construction_func': all_tissue_hypoxia_correction,
-        'hypoxia_correction_parameter_dict': hypoxia_correction_parameter_dict
-    })
-    return model1_all_tissue_parameter_dict
