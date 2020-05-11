@@ -78,6 +78,7 @@ def dynamic_range_model12(
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
         'complete_flux_dict': complete_flux_dict, 'bounds': bounds, 'iter_length': total_iter_num,
         'raw_constant_flux_dict': constant_flux_dict,
+        'mid_constraint_list_dict': {'': mid_constraint_list},
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux,
@@ -115,8 +116,10 @@ def all_tissue_model1(
     total_iter_num = each_iter_num * len(model_mid_data_dict)
 
     model_parameter_dict_list = []
+    mid_constraint_list_dict = {}
     for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
         balance_list, mid_constraint_list = model_construction_func(specific_tissue_mid_data_dict)
+        mid_constraint_list_dict[tissue_name] = mid_constraint_list
         flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
             balance_list, complete_flux_dict)
         (
@@ -136,6 +139,7 @@ def all_tissue_model1(
         'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
         'tissue_name_list': list(model_mid_data_dict.keys()),
         'raw_constant_flux_dict': constant_flux_dict,
+        'mid_constraint_list_dict': mid_constraint_list_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'f1_free_flux': f1_free_flux, 'g2_free_flux': g2_free_flux, 'iter_length': total_iter_num,
@@ -408,6 +412,7 @@ def dynamic_range_model345(
     const_parameter_dict = {
         'flux_balance_matrix': flux_balance_matrix, 'flux_balance_constant_vector': flux_balance_constant_vector,
         'substrate_mid_matrix': substrate_mid_matrix, 'flux_sum_matrix': flux_sum_matrix,
+        'mid_constraint_list_dict': {'': mid_constraint_list},
         'target_mid_vector': target_mid_vector, 'optimal_obj_value': optimal_obj_value,
         'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
         'raw_constant_flux_dict': constant_flux_dict,
@@ -451,8 +456,10 @@ def all_tissue_model3(
 
     total_iter_length = len(model_mid_data_dict) * total_point_num
     model_parameter_dict_list = []
+    mid_constraint_list_dict = {}
     for tissue_name, specific_tissue_mid_data_dict in model_mid_data_dict.items():
         balance_list, mid_constraint_list = model_construction_func(specific_tissue_mid_data_dict)
+        mid_constraint_list_dict[tissue_name] = mid_constraint_list
         flux_balance_matrix, flux_balance_constant_vector = common_functions.flux_balance_constraint_constructor(
             balance_list, complete_flux_dict)
         (
@@ -471,6 +478,7 @@ def all_tissue_model3(
         'complete_flux_dict': complete_flux_dict, 'bounds': bounds,
         'tissue_name_list': list(model_mid_data_dict.keys()),
         'raw_constant_flux_dict': constant_flux_dict,
+        'mid_constraint_list_dict': mid_constraint_list_dict,
 
         'optimization_repeat_time': optimization_repeat_time,
         'obj_tolerance': obj_tolerance, 'output_direct': output_direct,
@@ -1126,6 +1134,35 @@ def func_parallel_wrap(func_tuple):
     func(**kwargs)
 
 
+def append_flux_distribution(result_dict, feasible_flux_distribution_dict):
+    for flux_name, flux_value in result_dict.items():
+        if flux_name not in feasible_flux_distribution_dict:
+            feasible_flux_distribution_dict[flux_name] = []
+        feasible_flux_distribution_dict[flux_name].append(flux_value)
+
+
+def mid_prediction_preparation(tissue_name_list, mid_constraint_list_dict):
+    target_vector_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+    mid_size_dict = {}
+    for tissue_name, mid_constraint_list in mid_constraint_list_dict.items():
+        for mid_constraint_dict in mid_constraint_list:
+            target_vector = mid_constraint_dict[constant_set.target_label]
+            name = "_".join([name for name in mid_constraint_dict.keys() if name != 'target'])
+            target_vector_dict[tissue_name][name] = target_vector
+            if name not in mid_size_dict:
+                mid_size_dict[name] = len(target_vector)
+    return target_vector_dict, mid_size_dict
+
+
+def one_case_mid_prediction(result_dict, mid_constraint_list, mid_size_dict, predicted_mid_collection_dict):
+    predicted_mid_dict = common_functions.evaluation_for_one_flux(
+        result_dict, {}, mid_constraint_list, mid_size_dict)
+    for mid_name, mid_vector in predicted_mid_dict.items():
+        if mid_name not in predicted_mid_collection_dict:
+            predicted_mid_collection_dict[mid_name] = []
+        predicted_mid_collection_dict[mid_name].append(mid_vector)
+
+
 def final_processing_dynamic_range_model12(
         result_list, processed_result_list, const_parameter_dict, var_parameter_list):
     f1_free_flux: config.FreeVariable = const_parameter_dict['f1_free_flux']
@@ -1133,6 +1170,7 @@ def final_processing_dynamic_range_model12(
     output_direct = const_parameter_dict['output_direct']
     obj_tolerance = const_parameter_dict['obj_tolerance']
     raw_constant_flux_dict = const_parameter_dict['raw_constant_flux_dict']
+    mid_constraint_list_dict = const_parameter_dict['mid_constraint_list_dict']
     all_tissue = False
     model_name = const_parameter_dict['model_name']
     tissue_name = constant_set.default_tissue_name
@@ -1155,6 +1193,9 @@ def final_processing_dynamic_range_model12(
     well_fit_glucose_contri_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
     feasible_flux_distribution_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
     filtered_obj_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
+    predicted_mid_collection_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+
+    target_vector_dict, mid_size_dict = mid_prediction_preparation(tissue_name_list, mid_constraint_list_dict)
 
     for solver_result, processed_dict, var_parameter_dict in zip(
             result_list, processed_result_list, var_parameter_list):
@@ -1175,10 +1216,10 @@ def final_processing_dynamic_range_model12(
         objective_function_matrix[matrix_loc] = obj_diff
         result_dict = solver_result.result_dict
         if valid and obj_diff < obj_tolerance:
-            for flux_name, flux_value in result_dict.items():
-                if flux_name not in feasible_flux_distribution_dict:
-                    feasible_flux_distribution_dict[flux_name] = []
-                feasible_flux_distribution_dict[flux_name].append(flux_value)
+            append_flux_distribution(result_dict, feasible_flux_distribution_dict)
+            one_case_mid_prediction(
+                result_dict, mid_constraint_list_dict[tissue_name], mid_size_dict,
+                predicted_mid_collection_dict[tissue_name])
             filtered_obj_list_dict[tissue_name].append(obj_diff)
             well_fitted_count_dict[tissue_name] += 1
         for contribution_type, contribution_vector in contribution_dict.items():
@@ -1230,6 +1271,8 @@ def final_processing_dynamic_range_model12(
             'glucose_contri_matrix_dict': glucose_contri_matrix_dict,
             'well_fit_glucose_contri_dict': well_fit_glucose_contri_dict,
             'feasible_flux_distribution_dict': feasible_flux_distribution_dict,
+            'predicted_mid_collection_dict': predicted_mid_collection_dict[tissue_name],
+            'target_vector_dict': target_vector_dict[tissue_name]
         }
 
         # common_functions.plot_heat_map(
@@ -1290,6 +1333,7 @@ def final_processing_dynamic_range_model345(
     model_name = const_parameter_dict['model_name']
     parallel_num = const_parameter_dict['parallel_num']
     raw_constant_flux_dict = const_parameter_dict['raw_constant_flux_dict']
+    mid_constraint_list_dict = const_parameter_dict['mid_constraint_list_dict']
     all_tissue = False
     ternary_mean = False
     tissue_name = constant_set.default_tissue_name
@@ -1308,6 +1352,9 @@ def final_processing_dynamic_range_model345(
     objective_value_list_dict = {tissue_name: [] for tissue_name in tissue_name_list}
     well_fit_contri_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
     feasible_flux_distribution_tissue_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+    predicted_mid_collection_dict = {tissue_name: {} for tissue_name in tissue_name_list}
+
+    target_vector_dict, mid_size_dict = mid_prediction_preparation(tissue_name_list, mid_constraint_list_dict)
 
     for solver_result, processed_dict, var_parameter in zip(
             result_list, processed_result_list, var_parameter_list):
@@ -1331,10 +1378,10 @@ def final_processing_dynamic_range_model345(
             if obj_diff < obj_tolerance:
                 result_dict = solver_result.result_dict
                 well_fitted_count_dict[tissue_name] += 1
-                for flux_name, flux_value in result_dict.items():
-                    if flux_name not in feasible_flux_distribution_dict:
-                        feasible_flux_distribution_dict[flux_name] = []
-                    feasible_flux_distribution_dict[flux_name].append(flux_value)
+                append_flux_distribution(result_dict, feasible_flux_distribution_dict)
+                one_case_mid_prediction(
+                    result_dict, mid_constraint_list_dict[tissue_name], mid_size_dict,
+                    predicted_mid_collection_dict[tissue_name])
                 for contribution_type, contribution_vector in contribution_dict.items():
                     if contribution_type not in well_fit_contri_list_dict:
                         well_fit_contri_list_dict[contribution_type] = []
@@ -1377,6 +1424,8 @@ def final_processing_dynamic_range_model345(
             'filtered_obj_array': filtered_obj_array,
             'well_fit_contri_list_dict': well_fit_contri_list_dict,
             'feasible_flux_distribution_dict': feasible_flux_distribution_dict,
+            'predicted_mid_collection_dict': predicted_mid_collection_dict[tissue_name],
+            'target_vector_dict': target_vector_dict[tissue_name]
         }
 
         # Ternary plot for density of contribution
@@ -1459,7 +1508,7 @@ def final_processing_parameter_sensitivity_model1(
         objective_function_list = objective_function_list_dict[sample_type]
 
         if valid:
-            if sample_index >= len(objective_function_list):
+            while sample_index >= len(objective_function_list):
                 objective_function_list.append([])
             objective_function_list[sample_index].append(obj_diff)
         for contribution_type, contribution_vector in contribution_dict.items():
@@ -1467,9 +1516,9 @@ def final_processing_parameter_sensitivity_model1(
                 glucose_contri_list_dict[contribution_type] = []
             current_glucose_contribution_dict = glucose_contri_list_dict[contribution_type]
             if valid:
-                if sample_index >= len(current_glucose_contribution_dict):
-                    current_glucose_contribution_dict.append([])
                 if obj_diff < obj_tolerance:
+                    while sample_index >= len(current_glucose_contribution_dict):
+                        current_glucose_contribution_dict.append([])
                     current_glucose_contribution_dict[sample_index].append(contribution_vector[0])
 
     for sample_type, sample_obj_list in objective_function_list_dict.items():

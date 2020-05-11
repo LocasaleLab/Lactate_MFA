@@ -285,6 +285,23 @@ def model5_parameters(test=False):
     return locals()
 
 
+def model5_comb2_parameters(test=False):
+    model_name = "model5_comb2"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model5_parameter_dict = model5_parameters(test)
+    data_collection_kwargs = model5_parameter_dict['data_collection_kwargs']
+    data_collection_kwargs.update({
+        'sink1_tissue_marker': constant_set.brain_marker,
+        'sink2_tissue_marker': constant_set.muscle_marker})
+    model5_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model5_parameter_dict
+
+
 def model6_parameters(test=False):
     model_name = "model6"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
