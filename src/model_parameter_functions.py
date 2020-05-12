@@ -340,7 +340,7 @@ def model6_parameters(test=False):
     constant_flux_dict = {'Jin': 111.1, 'F10': 80, 'Fcirc_lac': 400}
 
     min_flux_value = 1
-    max_flux_value = 1000  # 8000
+    max_flux_value = 1000
     max_free_flux_value = 300
     optimization_repeat_time = 10
     obj_tolerance = 0.25
@@ -384,7 +384,7 @@ def model7_parameters(test=False):
     fcirc_glc_max = 200
 
     min_flux_value = 1
-    max_flux_value = 2000
+    max_flux_value = 1000  # 2000
     optimization_repeat_time = 10
     obj_tolerance = 0.4
     ternary_sigma = 0.15
