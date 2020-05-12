@@ -302,6 +302,23 @@ def model5_comb2_parameters(test=False):
     return model5_parameter_dict
 
 
+def model5_comb3_parameters(test=False):
+    model_name = "model5_comb3"
+    output_direct = "{}/{}".format(constant_set.output_direct, model_name)
+
+    model5_parameter_dict = model5_parameters(test)
+    data_collection_kwargs = model5_parameter_dict['data_collection_kwargs']
+    data_collection_kwargs.update({
+        'sink1_tissue_marker': constant_set.heart_marker,
+        'sink2_tissue_marker': constant_set.brain_marker})
+    model5_parameter_dict.update({
+        'model_name': model_name,
+        'output_direct': output_direct,
+        'data_collection_kwargs': data_collection_kwargs
+    })
+    return model5_parameter_dict
+
+
 def model6_parameters(test=False):
     model_name = "model6"
     output_direct = "{}/{}".format(constant_set.output_direct, model_name)
@@ -472,7 +489,7 @@ def model1_parameter_sensitivity(test=False):
     hook_after_all_iterations = final_processing_parameter_sensitivity_model1
 
     deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.1, 0.7]}
-    sigma_dict = {'mid': 0.5, 'flux': 0.5}
+    sigma_dict = {'mid': 0.5, 'flux': 0.4}
 
     if test:
         f1_num = 21

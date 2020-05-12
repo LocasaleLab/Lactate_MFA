@@ -698,6 +698,7 @@ def parser_main():
         'model3_unfitted': model_parameter_functions.model3_unfitted_parameters,
         'model5': model_parameter_functions.model5_parameters,
         'model5_comb2': model_parameter_functions.model5_comb2_parameters,
+        'model5_comb3': model_parameter_functions.model5_comb3_parameters,
         'model5_unfitted': model_parameter_functions.model5_unfitted_parameters,
         'model6': model_parameter_functions.model6_parameters,
         'model6_m2': model_parameter_functions.model6_m2_parameters,
