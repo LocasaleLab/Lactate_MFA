@@ -228,7 +228,8 @@ def model5_parameters(test=False):
 
     data_collection_kwargs = {
         'label_list': ["glucose"], 'mouse_id_list': ['M1'],
-        'source_tissue_marker': constant_set.liver_marker, 'sink1_tissue_marker': constant_set.heart_marker,
+        'source_tissue_marker': constant_set.liver_marker,
+        'sink1_tissue_marker': constant_set.heart_marker,
         'sink2_tissue_marker': constant_set.muscle_marker}
     # data_collection_kwargs = {
     #     'label_list': ["glucose"], 'mouse_id_list': ['M1'],
@@ -488,8 +489,8 @@ def model1_parameter_sensitivity(test=False):
     parameter_construction_func = parameter_sensitivity_model1
     hook_after_all_iterations = final_processing_parameter_sensitivity_model1
 
-    deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.1, 0.5]}
-    sigma_dict = {'mid': 0.5, 'flux': 0.25}
+    deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.05, 0.6]}
+    sigma_dict = {'mid': 0.5, 'flux': 0.1}
 
     if test:
         f1_num = 21
