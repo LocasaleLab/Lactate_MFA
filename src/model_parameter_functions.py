@@ -490,7 +490,7 @@ def model1_parameter_sensitivity(test=False):
     hook_after_all_iterations = final_processing_parameter_sensitivity_model1
 
     deviation_factor_dict = {'mid': [0.1, 0.9], 'flux': [0.05, 0.6]}
-    sigma_dict = {'mid': 0.5, 'flux': 0.1}
+    sigma_dict = {'mid': 0.5, 'flux': 0.2}  # 0.1
 
     if test:
         f1_num = 21
