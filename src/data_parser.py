@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+#  -*- coding: utf-8 -*-
+# (C) Shiyu Liu, Locasale Lab, 2019
+# Contact: liushiyu1994@gmail.com
+# All rights reserved
+# Licensed under MIT License (see LICENSE-MIT)
+
+"""
+    Functions and classes for data loader from xlsx files.
+"""
+
 import warnings
 
 import xlrd
@@ -21,55 +32,73 @@ kTissueList = ['Sr', 'AT', 'Br', 'Ht', 'Kd', 'Lg', 'Lv', 'Pc', 'SI', 'SkM', 'Sp'
 # ...
 # }
 class DataCollect:
+    """
+    This class is to collect data and its experiment name.
+    """
+
     def __init__(self, experiment_name, mid_data_dict):
         self.experiment_name = experiment_name
         self.mid_data = mid_data_dict
 
 
-class OldDataCollect:
-    def __init__(self, label_name, serum_mid_dict, tissue_mid_dict):
-        self.label_name = label_name
-        self.serum_mids = serum_mid_dict
-        self.tissue_mids = tissue_mid_dict
-
-
-def data_loader(file_path, sheet_name):
-    def load_one_part(metabolite_name_list, carbon_num_list, start_row_list):
-        part_mids = {}
-        for index, metabolite_name in enumerate(metabolite_name_list):
-            carbon_num = carbon_num_list[index]
-            start_row = start_row_list[index]
-            mid_list = []
-            for add_row in range(carbon_num + 1):
-                mid_list.append(data_sheet.cell_value(start_row + add_row, experiment_col))
-            part_mids[metabolite_name] = np.array(mid_list)
-        return part_mids
-
-    data_book = xlrd.open_workbook(str(file_path))
-    data_sheet = data_book.sheet_by_name(sheet_name)
-    experiment_label_list = ["glucose", "lactate"]
-    experiment_col_list = [2, 3]
-    serum_metabolite_name_list = ["glucose", "lactate", "pyruvate"]
-    serum_carbon_num_list = [6, 3, 3]
-    serum_start_row_list = [3, 11, 16]
-    tissue_metabolite_name_list = [
-        "glucose", "g6p", "3pg", "lactate", "pyruvate", "alanine",
-        "serine", "citrate", "succinate", "malate", "akg", "s7p"]
-    tissue_carbon_num_list = [6, 6, 3, 3, 3, 3, 3, 6, 4, 4, 5, 7]
-    tissue_start_row_list = [23, 31, 39, 44, 48, 52, 56, 60, 67, 72, 77, 83]
-    data_collect_dict = {}
-
-    for experiment_label, experiment_col in zip(experiment_label_list, experiment_col_list):
-        serum_mids = load_one_part(
-            serum_metabolite_name_list, serum_carbon_num_list, serum_start_row_list)
-        tissue_mids = load_one_part(
-            tissue_metabolite_name_list, tissue_carbon_num_list, tissue_start_row_list)
-        data_collect_dict[experiment_label] = OldDataCollect(experiment_label, serum_mids, tissue_mids)
-
-    return data_collect_dict
+# class OldDataCollect:
+#     """
+#     Deprecated. Old data collect class
+#     """
+#     def __init__(self, label_name, serum_mid_dict, tissue_mid_dict):
+#         self.label_name = label_name
+#         self.serum_mids = serum_mid_dict
+#         self.tissue_mids = tissue_mid_dict
+#
+#
+# def data_loader(file_path, sheet_name):
+#     """
+#     Deprecated.
+#     :param file_path:
+#     :param sheet_name:
+#     :return:
+#     """
+#     def load_one_part(metabolite_name_list, carbon_num_list, start_row_list):
+#         part_mids = {}
+#         for index, metabolite_name in enumerate(metabolite_name_list):
+#             carbon_num = carbon_num_list[index]
+#             start_row = start_row_list[index]
+#             mid_list = []
+#             for add_row in range(carbon_num + 1):
+#                 mid_list.append(data_sheet.cell_value(start_row + add_row, experiment_col))
+#             part_mids[metabolite_name] = np.array(mid_list)
+#         return part_mids
+#
+#     data_book = xlrd.open_workbook(str(file_path))
+#     data_sheet = data_book.sheet_by_name(sheet_name)
+#     experiment_label_list = ["glucose", "lactate"]
+#     experiment_col_list = [2, 3]
+#     serum_metabolite_name_list = ["glucose", "lactate", "pyruvate"]
+#     serum_carbon_num_list = [6, 3, 3]
+#     serum_start_row_list = [3, 11, 16]
+#     tissue_metabolite_name_list = [
+#         "glucose", "g6p", "3pg", "lactate", "pyruvate", "alanine",
+#         "serine", "citrate", "succinate", "malate", "akg", "s7p"]
+#     tissue_carbon_num_list = [6, 6, 3, 3, 3, 3, 3, 6, 4, 4, 5, 7]
+#     tissue_start_row_list = [23, 31, 39, 44, 48, 52, 56, 60, 67, 72, 77, 83]
+#     data_collect_dict = {}
+#
+#     for experiment_label, experiment_col in zip(experiment_label_list, experiment_col_list):
+#         serum_mids = load_one_part(
+#             serum_metabolite_name_list, serum_carbon_num_list, serum_start_row_list)
+#         tissue_mids = load_one_part(
+#             tissue_metabolite_name_list, tissue_carbon_num_list, tissue_start_row_list)
+#         data_collect_dict[experiment_label] = OldDataCollect(experiment_label, serum_mids, tissue_mids)
+#
+#     return data_collect_dict
 
 
 def metabolite_name_strip(raw_metabolite_name):
+    """
+    Function that convert MID name in raw data file to original metabolite name.
+    :param raw_metabolite_name: Metabolite name read from raw data file.
+    :return: Original metabolite name
+    """
     raw_metabolite_name = raw_metabolite_name.strip()
     carbon_marker = '[13C]'
     try:
@@ -88,6 +117,17 @@ def metabolite_name_strip(raw_metabolite_name):
 
 
 def data_parser(file_path, experiment_name_prefix, label_list):
+    """
+    Data parser function that load mass spec data from xlsx data file, calculate MID distribution
+    and convert them to a dict object.
+
+    :param file_path: Path of xlsx file.
+    :param experiment_name_prefix: Prefix of experiment name. Used to search in sheet name of xlsx file.
+    :param label_list: Label name of experiments. Used to search in sheet name of xlsx file.
+    :return: DataCollect object that includes MID of all metabolites in all kinds of tissue in current
+        experiment data file.
+    """
+
     data_book = xlrd.open_workbook(str(file_path))
     mid_data_dict = {}
     for label_name in label_list:
@@ -140,7 +180,7 @@ def data_parser(file_path, experiment_name_prefix, label_list):
                     else:
                         this_tissue_dict[metabolite] = (
                                                                this_tissue_dict[metabolite] * (
-                                                                   sample_num - 1) + normalized_mid_array) / sample_num
+                                                               sample_num - 1) + normalized_mid_array) / sample_num
                 try:
                     current_label_data_dict[mouse_id][tissue] = this_tissue_dict
                 except KeyError:
@@ -150,7 +190,17 @@ def data_parser(file_path, experiment_name_prefix, label_list):
     return DataCollect(experiment_name_prefix, mid_data_dict)
 
 
-def data_checker(data_collection, required_serum_metabolites, required_tissue_metabolites):
+def data_checker(data_collection: DataCollect, required_serum_metabolites, required_tissue_metabolites):
+    """
+    Function that check existence and correctness of MID data. It will ensure that data contains MID of certain
+    metabolites in certain tissue, and these MIDs satisfy requirement for MID.
+
+    :param data_collection: DataCollect object that returned by data_parser function.
+    :param required_serum_metabolites: Required metabolite MID in serum.
+    :param required_tissue_metabolites: Required metabolite MID in all kinds of tissue.
+    :return: Corrected data in DataCollect object.
+    """
+
     small_eps = 1e-4
     large_eps = 0.1
     data_dict = data_collection.mid_data
@@ -198,6 +248,9 @@ def data_checker(data_collection, required_serum_metabolites, required_tissue_me
 
 
 def main():
+    """
+    Test
+    """
     file_path = "data_collection.xlsx"
     experiment_name_prefix = "Sup_Fig_5_fasted"
     label_list = ["glucose", "lactate"]

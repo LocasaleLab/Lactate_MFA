@@ -1,10 +1,23 @@
-import platform
+#!/usr/bin/env python
+#  -*- coding: utf-8 -*-
+# (C) Shiyu Liu, Locasale Lab, 2019
+# Contact: liushiyu1994@gmail.com
+# All rights reserved
+# Licensed under MIT License (see LICENSE-MIT)
+
+"""
+    Configurations for some constants and common classes.
+"""
 
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 
 class Result(object):
+    """
+    Class to contain results, which include necessary components as a result.
+    """
+
     def __init__(
             self, result_dict: dict, obj_value: float, success: bool, minimal_obj_value: float, label: dict):
         self.result_dict = result_dict
@@ -14,11 +27,18 @@ class Result(object):
         self.label = label
 
     def __repr__(self):
+        """
+        Overloading to provide a user-friendly display for result objects.
+        """
         return "Result: {}\nObjective value: {}\nSuccess: {}\nMinimal objective value: {}".format(
             self.result_dict, self.obj_value, self.success, self.minimal_obj_value)
 
 
 class FreeVariable(object):
+    """
+    Class that contains necessary component for a free variable, such as F1 and G2.
+    """
+
     def __init__(self, name, total_num, var_range, display_interv):
         self.flux_name = name
         self.total_num = total_num + 1
@@ -29,20 +49,46 @@ class FreeVariable(object):
         self.tick_labels = np.around(self.value_array[self.tick_in_range])
 
     def __iter__(self):
+        """
+        Overload the __iter__ method for iterating operation.
+        """
         return self.value_array.__iter__()
 
 
 def rgba_to_rgb(raw_rgb, alpha, background):
+    """
+    Convert color in RGBA to RGB.
+    :param raw_rgb: RGB components in RGBA form.
+    :param alpha: Transparency of RGBA color.
+    :param background: Background color.
+    :return: Transformed RGB color.
+    """
     return raw_rgb * alpha + background * (1 - alpha)
 
 
 def empty_vector(n):
+    """
+    Construct an vector full of NaN with size n.
+    :param n: Size of the NaN vector.
+    :return: The NaN vector.
+    """
     a = np.empty(n)
     a.fill(np.nan)
     return a
 
 
 def bound_pair_generator(min_flux_value, max_flux_value, flux_list, special_bound_dict=None):
+    """
+    Function that convert uniform min and max flux value to two arrays which contain min and max value of all fluxes.
+    Some special bounds can also be inserted into those bounds.
+
+    :param min_flux_value: Uniform min flux value.
+    :param max_flux_value: Uniform max flux value.
+    :param flux_list: List of all flux name.
+    :param special_bound_dict: Special bounds for certain fluxes.
+    :return: Generated min and max bound pair.
+    """
+
     if special_bound_dict is None:
         bound_pair_list = ([min_flux_value] * len(flux_list), [max_flux_value] * len(flux_list))
     else:
@@ -59,6 +105,9 @@ def bound_pair_generator(min_flux_value, max_flux_value, flux_list, special_boun
 
 
 class Color(object):
+    """
+    Some constants related to color.
+    """
     white = np.array([1, 1, 1])
     blue = np.array([21, 113, 177]) / 255
     orange = np.array([251, 138, 68]) / 255
@@ -76,6 +125,9 @@ class Color(object):
 
 
 class Constants(object):
+    """
+    Some constants in model.
+    """
     plasma_marker = 'Sr'
     brain_marker = 'Br'
     heart_marker = 'Ht'

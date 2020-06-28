@@ -32,7 +32,7 @@ docker run -it --rm --name python_$MODEL -v `pwd`:/Lactate_MFA/new_models \
   locasalelab/lactate_mfa:latest $MODEL --test_mode
 ```
 
-In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. BE CAREFUL that the target path would be visited as root account in container! The flag `--test_mode` makes the code run quickly in a test mode, and could be removed to run a formal mode. The formal running takes tens of hours.
+In this script, you could modify the value of `MODEL` to the name of your target model, and modify the value of `TARGET_PATH` to the path that you want to output results. Available model name is listed in following section. BE CAREFUL that the target path would be visited as root account in container! The flag `--test_mode` or `-t` makes the code run quickly in a test mode, and could be removed to run a formal mode. The formal running takes tens of hours.
 
 ### System Python interpreter
 
@@ -45,18 +45,15 @@ git clone https://github.com/LocasaleLab/Lactate_MFA
 Switch to the source direct, add PYTHONPATH environment and run the `new_model_main.py`:
 
 ```shell script
+MODEL=model1_m5
 cd Lactate_MFA
 export PYTHONPATH=$PYTHONPATH:`pwd`
 python src/new_model_main.py $MODEL --test_mode
 ```
 
-Similar with Docker, you could modify the value of `MODEL` to the name of your target model. Final results will be written to the `new_models` folder in current directory. Available model name is listed in following section. The flag `--test_mode` could also be removed to run a formal mode.
+Similar with Docker, you could modify the value of `MODEL` to the name of your target model. Final results will be written to the `new_models` folder in current directory. Available model name is listed in following section. The flag `--test_mode` or `-t` could also be removed to run a formal mode.
 
 ### Parameters
-
--f, --fitting_result:
-
-    Whether to show the distribution of fitting result after simulating the sample.
 
 -p, --parallel_num:
     
@@ -90,10 +87,15 @@ Similar with Docker, you could modify the value of `MODEL` to the name of your t
 | `model3_unfitted`  | Model D | Liver | Heart | Glucose; Pyruvate; Lactate | Low-infusion glucose data: mouse M1 | Unfitted result of two-tissue model with three circulatory metabolites, as the negative result of fitting. |
 | `model3_all`  | Model D | Liver | All 8 tissues | Glucose; Pyruvate; Lactate | Low-infusion glucose data: mouse M1 | Two-tissue model with three circulatory metabolites and different sink tissues. |
 | `model5`  | Model C | Liver | Heart; Skeletal muscle | Glucose; Lactate | Low-infusion data: mouse M1 | Three-tissue model. |
+| `model5_comb2`  | Model C | Liver | Brain; Skeletal muscle | Glucose; Lactate | Low-infusion data: mouse M1 | Three-tissue model. |
+| `model5_comb3`  | Model C | Liver | Heart; Brain | Glucose; Lactate | Low-infusion data: mouse M1 | Three-tissue model. |
 | `model5_unfitted`  | Model C | Liver | Heart; Skeletal muscle | Glucose; Lactate | Low-infusion data: mouse M1 | Unfitted result of three-tissue model, as the negative result of fitting. |
 | `model7`  | Model E | Liver | Skeletal muscle | Glucose; Pyruvate; Lactate | High-infusion data: mouse M1 | Two-tissue model with three circulatory metabolites and high-infusion data. |
 | `model7_unfitted`  | Model E | Liver | Skeletal muscle | Glucose; Pyruvate; Lactate | High-infusion data: mouse M1 | Unfitted result of two-tissue model with three circulatory metabolites and high-infusion flux, as the negative result of fitting. |
 
+## Result display
+
+Results generated in computation are plotted to figures by functions in Jupyter Notebook file `data_process.ipynb`. Figures in paper can also be found in this file.
 
 ## Contributors
 
