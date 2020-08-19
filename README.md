@@ -4,6 +4,9 @@
 
 This software is used for 13C metabolic flux analysis based on a multi-tissue model to analyze nutrition utilization in physiological condition. The 13C tracing data in `data_collection.xlsx` (low infusion data from [Hui *et al*, 2017](https://doi.org/10.1038/nature24057)) and `data_collection_Dan.xlsx` (high infusion data) are used as input. Users can choose model to run and corresponding results will be written to `new_models` folder. 
 
+## Data
+All <sup>13</sup>C-isotope labeling data are in `data/data_collection.xlsx`(low-infusion data) `data/data_collection_from_Dan.xlsx`(high-infusion data). Concentration data of glucose, lactate and insulin during infusion are in `data/related_data_from_dan.xlsx`.
+
 ## Requirements
 
 This software is developed and tested on Python 3.6. It also relies on following Python packages:
@@ -55,13 +58,13 @@ Similar with Docker, you could modify the value of `MODEL` to the name of your t
 
 ### Parameters
 
--p, --parallel_num:
+`-p, --parallel_num`:
     
-    Number of parallel processes. If not provided, it will be selected according to CPU cores.
+Number of parallel processes. If not provided, it will be selected according to CPU cores.
 
--t, --test_mode:
+`-t, --test_mode`:
 
-    Whether the code is executed in test mode, which means less sample number and shorter time (several minites).
+Whether the code is executed in test mode, which means less sample number and shorter time (several minites).
 
 
 ### List of models
