@@ -5,7 +5,7 @@
 This software is used for 13C metabolic flux analysis based on a multi-tissue model to analyze nutrition utilization in physiological condition. The 13C tracing data in `data_collection.xlsx` (low infusion data from [Hui *et al*, 2017](https://doi.org/10.1038/nature24057)) and `data_collection_Dan.xlsx` (high infusion data) are used as input. Users can choose model to run and corresponding results will be written to `new_models` folder. 
 
 ## Data
-All <sup>13</sup>C-isotope labeling data are in `data/data_collection.xlsx`(low-infusion data) `data/data_collection_from_Dan.xlsx`(high-infusion data). Concentration data of glucose, lactate and insulin during infusion are in `data/related_data_from_dan.xlsx`.
+All <sup>13</sup>C-isotope labeling data are in `data/data_collection.xlsx`(low-infusion data) and `data/data_collection_from_Dan.xlsx`(high-infusion data). Concentration data of glucose, lactate and insulin during infusion are in `data/related_data_from_dan.xlsx`.
 
 ## Requirements
 
